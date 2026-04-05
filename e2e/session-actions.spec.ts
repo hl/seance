@@ -8,7 +8,7 @@ async function openProject(page: Page) {
 }
 
 async function createSession(page: Page, task: string) {
-  await page.getByText("+ New Agent").click();
+  await page.getByText("+ New Session").click();
   const input = page.locator('input[aria-label="New session task name"]');
   await input.fill(task);
   await input.press("Enter");
@@ -34,13 +34,13 @@ test.describe("Session Actions", () => {
     await card.hover();
 
     // Click the kill button (✕)
-    const killBtn = card.locator('[title="Kill agent"]');
+    const killBtn = card.locator('[title="Kill session"]');
     await expect(killBtn).toBeVisible();
     await killBtn.click();
 
     // Status should change — the card should now show the restart button on hover
     await card.hover();
-    const restartBtn = card.locator('[title="Restart agent"]');
+    const restartBtn = card.locator('[title="Restart session"]');
     await expect(restartBtn).toBeVisible({ timeout: 5000 });
 
     // Kill button should be gone
@@ -54,17 +54,17 @@ test.describe("Session Actions", () => {
     // Kill first
     const card = page.locator("button").filter({ hasText: "to-restart" });
     await card.hover();
-    await card.locator('[title="Kill agent"]').click();
+    await card.locator('[title="Kill session"]').click();
 
     // Now restart
     await card.hover();
-    const restartBtn = card.locator('[title="Restart agent"]');
+    const restartBtn = card.locator('[title="Restart session"]');
     await expect(restartBtn).toBeVisible({ timeout: 5000 });
     await restartBtn.click();
 
     // Should be back to running — kill button visible, restart hidden
     await card.hover();
-    await expect(card.locator('[title="Kill agent"]')).toBeVisible({
+    await expect(card.locator('[title="Kill session"]')).toBeVisible({
       timeout: 5000,
     });
   });

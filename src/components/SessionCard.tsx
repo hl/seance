@@ -76,7 +76,7 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
               }
             }}
             className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-neutral-700 hover:text-neutral-300 group-hover:inline-block"
-            title="Kill agent"
+            title="Kill session"
           >
             ✕
           </span>
@@ -93,7 +93,7 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
               }
             }}
             className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-neutral-700 hover:text-neutral-300 group-hover:inline-block"
-            title="Restart agent"
+            title="Restart session"
           >
             ↻
           </span>
@@ -110,7 +110,7 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
               }
             }}
             className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-red-900/50 hover:text-red-400 group-hover:inline-block"
-            title="Remove agent"
+            title="Remove session"
           >
             ✕
           </span>

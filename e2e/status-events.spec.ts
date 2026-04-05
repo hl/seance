@@ -8,7 +8,7 @@ async function openProjectAndCreateSession(page: Page, mock: MockBackend) {
   await expect(page.locator("header")).toContainText("my-app");
 
   // Create a session
-  await page.getByText("+ New Agent").click();
+  await page.getByText("+ New Session").click();
   const input = page.locator('input[aria-label="New session task name"]');
   await input.fill("status-test");
   await input.press("Enter");

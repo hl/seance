@@ -14,7 +14,7 @@ async function openProject(page: Page) {
 }
 
 async function createSession(page: Page, task: string) {
-  const newBtn = page.getByText("+ New Agent");
+  const newBtn = page.getByText("+ New Session");
   await expect(newBtn).toBeVisible({ timeout: 5000 });
   await newBtn.click();
 
@@ -52,11 +52,11 @@ test.describe("Session Lifecycle", () => {
 
   test("creating a session activates the terminal area", async ({ page }) => {
     await openProject(page);
-    await expect(page.getByText("No agents yet")).toBeVisible();
+    await expect(page.getByText("No sessions yet")).toBeVisible();
 
     await createSession(page, "build-feature");
 
-    await expect(page.getByText("No agents yet")).not.toBeVisible();
+    await expect(page.getByText("No sessions yet")).not.toBeVisible();
     const terminalArea = page.locator(".xterm");
     await expect(terminalArea).toBeVisible({ timeout: 5000 });
   });
@@ -122,9 +122,9 @@ test.describe("Session Lifecycle", () => {
 
     const panel = page.locator(".border-l");
     await expect(
-      panel.getByRole("heading", { name: "Agents" }),
+      panel.getByRole("heading", { name: "Sessions" }),
     ).toBeVisible();
-    await expect(page.getByText("+ New Agent")).toBeVisible();
+    await expect(page.getByText("+ New Session")).toBeVisible();
   });
 
   test("re-entering a project shows sessions and allows reactivation", async ({
@@ -132,7 +132,7 @@ test.describe("Session Lifecycle", () => {
   }) => {
     await openProject(page);
     await createSession(page, "terminal-test");
-    await expect(page.getByText("No agents yet")).not.toBeVisible();
+    await expect(page.getByText("No sessions yet")).not.toBeVisible();
 
     // Go back and re-enter
     await page.locator('header button[title="Back to projects"]').click();
@@ -172,7 +172,7 @@ test.describe("Session Lifecycle", () => {
     page,
   }) => {
     await openProject(page);
-    await page.getByText("+ New Agent").click();
+    await page.getByText("+ New Session").click();
 
     const input = page.locator('input[aria-label="New session task name"]');
     await expect(input).toBeVisible();
@@ -181,7 +181,7 @@ test.describe("Session Lifecycle", () => {
     await input.press("Enter");
 
     await expect(input).not.toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("+ New Agent")).toBeVisible();
+    await expect(page.getByText("+ New Session")).toBeVisible();
   });
 
   // ---- Header elements ----------------------------------------------------
@@ -207,7 +207,7 @@ test.describe("Session Lifecycle", () => {
     page,
   }) => {
     await openProject(page);
-    await page.getByText("+ New Agent").click();
+    await page.getByText("+ New Session").click();
 
     const input = page.locator('input[aria-label="New session task name"]');
     await input.fill("Fix Auth Bug!!");
@@ -226,11 +226,11 @@ test.describe("Session Lifecycle", () => {
   }) => {
     await openProject(page);
 
-    await expect(page.getByText("No agents yet")).toBeVisible();
+    await expect(page.getByText("No sessions yet")).toBeVisible();
 
     const panel = page.locator(".border-l");
     const countEl = panel.locator(".border-b span.text-neutral-600");
     await expect(countEl).toHaveText("0");
-    await expect(page.getByText("+ New Agent")).toBeVisible();
+    await expect(page.getByText("+ New Session")).toBeVisible();
   });
 });
