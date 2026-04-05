@@ -22,7 +22,7 @@ const NewSessionInput: FC<NewSessionInputProps> = ({ projectId, onDone }) => {
     inputRef.current?.focus();
   }, []);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     const trimmed = value.trim();
     if (!trimmed) {
       setError("Task name is required");
@@ -32,8 +32,12 @@ const NewSessionInput: FC<NewSessionInputProps> = ({ projectId, onDone }) => {
       setError("Use lowercase letters, digits, and hyphens only");
       return;
     }
-    createSession(projectId, trimmed);
-    onDone();
+    try {
+      await createSession(projectId, trimmed);
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   }, [value, projectId, createSession, onDone]);
 
   const handleKeyDown = useCallback(

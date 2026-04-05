@@ -21,7 +21,6 @@ pub async fn create_session(
     state: tauri::State<'_, Arc<AppState>>,
     project_id: Uuid,
     task: String,
-    on_output: Channel<Vec<u8>>,
 ) -> Result<Session, String> {
     // Validate the task slug.
     validate_task_slug(&task)?;
@@ -55,9 +54,10 @@ pub async fn create_session(
         settings.hook_port
     };
 
-    // Spawn the PTY.
+    // Spawn the PTY. No Channel yet — the Terminal component will call
+    // subscribe_output to attach a Channel after the session is created.
     let (handle, child) =
-        pty_engine::spawn_session(session_id, &command_line, &project_dir, hook_port, on_output)?;
+        pty_engine::spawn_session(session_id, &command_line, &project_dir, hook_port)?;
 
     let pid = handle.pid;
     let now = timestamp_now();
@@ -216,7 +216,6 @@ pub async fn subscribe_output(
 pub async fn restart_session(
     state: tauri::State<'_, Arc<AppState>>,
     session_id: Uuid,
-    on_output: Channel<Vec<u8>>,
 ) -> Result<Session, String> {
     // Read session metadata.
     let (project_id, task, generated_name) = {
@@ -260,7 +259,6 @@ pub async fn restart_session(
         &command_line,
         &project_dir,
         hook_port,
-        on_output,
     )?;
 
     // Clean up old handle now that the new spawn succeeded.

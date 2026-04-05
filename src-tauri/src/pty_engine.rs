@@ -94,7 +94,6 @@ pub fn spawn_session(
     command_line: &str,
     working_dir: &str,
     hook_port: u16,
-    channel: tauri::ipc::Channel<Vec<u8>>,
 ) -> Result<(SessionHandle, Box<dyn Child + Send + Sync>), String> {
     let pty_system = native_pty_system();
     let pair = pty_system
@@ -160,8 +159,15 @@ pub fn spawn_session(
         })
         .map_err(|e| format!("Failed to spawn reader thread: {}", e))?;
 
-    // Start the forwarder task (async, on the Tauri/tokio runtime).
-    let forwarder_handle = spawn_forwarder(rx, channel);
+    // Start a drain task that keeps the mpsc receiver alive (prevents
+    // reader thread from failing on send) but drops data until
+    // subscribe_output attaches a real Channel.
+    let drain_handle = tauri::async_runtime::spawn(async move {
+        let mut rx = rx;
+        while rx.recv().await.is_some() {
+            // Drain — data is in scrollback already
+        }
+    });
 
     let killer = child.clone_killer();
 
@@ -170,7 +176,7 @@ pub fn spawn_session(
         writer,
         scrollback,
         master,
-        forwarder_abort: Some(forwarder_handle),
+        forwarder_abort: Some(drain_handle),
         output_tx: swappable_tx,
         pid,
     };

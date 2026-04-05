@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { invoke } from "@tauri-apps/api/core";
 
 export type SessionStatus =
   | "running"
@@ -18,15 +19,40 @@ export interface SessionData {
   createdAt: number;
 }
 
+// Backend response shape from create_session / restart_session
+interface BackendSession {
+  id: string;
+  project_id: string;
+  task: string;
+  generated_name: string;
+  status: SessionStatus;
+  last_message: string | null;
+  created_at: string;
+  last_started_at: string | null;
+  last_known_pid: number | null;
+}
+
+function backendToFrontend(s: BackendSession): SessionData {
+  return {
+    id: s.id,
+    projectId: s.project_id,
+    task: s.task,
+    generatedName: s.generated_name,
+    status: s.status,
+    lastMessage: s.last_message ?? "",
+    createdAt: parseInt(s.created_at, 10) * 1000 || Date.now(),
+  };
+}
+
 interface SessionState {
   sessions: Map<string, SessionData>;
   activeSessionId: string | null;
   activeProjectId: string | null;
 
-  createSession: (projectId: string, task: string) => string;
+  createSession: (projectId: string, task: string) => Promise<string>;
   switchSession: (sessionId: string) => void;
-  killSession: (sessionId: string) => void;
-  restartSession: (sessionId: string) => void;
+  killSession: (sessionId: string) => Promise<void>;
+  restartSession: (sessionId: string) => Promise<void>;
   updateStatus: (
     sessionId: string,
     status: SessionStatus,
@@ -38,36 +64,29 @@ interface SessionState {
   switchToIndex: (index: number) => void;
 }
 
-function generateUUID(): string {
-  return crypto.randomUUID();
-}
-
-function placeholderName(uuid: string): string {
-  return `Agent-${uuid.slice(0, 8)}`;
-}
-
 export const useSessionStore = create<SessionState>()((set, get) => ({
   sessions: new Map(),
   activeSessionId: null,
   activeProjectId: null,
 
-  createSession: (projectId: string, task: string) => {
-    const id = generateUUID();
-    const session: SessionData = {
-      id,
+  createSession: async (projectId: string, task: string) => {
+    // Call the backend to spawn the PTY. The Channel for output streaming
+    // is handled separately by the Terminal component's subscribe_output call
+    // when activeSessionId changes.
+    const backendSession = await invoke<BackendSession>("create_session", {
       projectId,
       task,
-      generatedName: placeholderName(id),
-      status: "running",
-      lastMessage: "",
-      createdAt: Date.now(),
-    };
+    });
+
+    const session = backendToFrontend(backendSession);
+
     set((state) => {
       const next = new Map(state.sessions);
-      next.set(id, session);
-      return { sessions: next, activeSessionId: id };
+      next.set(session.id, session);
+      return { sessions: next, activeSessionId: session.id };
     });
-    return id;
+
+    return session.id;
   },
 
   switchSession: (sessionId: string) => {
@@ -77,7 +96,12 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     }
   },
 
-  killSession: (sessionId: string) => {
+  killSession: async (sessionId: string) => {
+    try {
+      await invoke("kill_session", { sessionId });
+    } catch (err) {
+      console.error("Failed to kill session:", err);
+    }
     set((state) => {
       const next = new Map(state.sessions);
       const session = next.get(sessionId);
@@ -90,19 +114,20 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     });
   },
 
-  restartSession: (sessionId: string) => {
-    set((state) => {
-      const next = new Map(state.sessions);
-      const session = next.get(sessionId);
-      if (session) {
-        next.set(sessionId, {
-          ...session,
-          status: "running",
-          lastMessage: "",
-        });
-      }
-      return { sessions: next };
-    });
+  restartSession: async (sessionId: string) => {
+    try {
+      const backendSession = await invoke<BackendSession>("restart_session", {
+        sessionId,
+      });
+      const session = backendToFrontend(backendSession);
+      set((state) => {
+        const next = new Map(state.sessions);
+        next.set(session.id, session);
+        return { sessions: next, activeSessionId: session.id };
+      });
+    } catch (err) {
+      console.error("Failed to restart session:", err);
+    }
   },
 
   updateStatus: (
@@ -140,8 +165,6 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
   },
 
   loadSessions: (_projectId: string) => {
-    // Will be wired to Tauri backend in a later unit.
-    // For now, clears sessions for the given project context.
     set({ sessions: new Map(), activeSessionId: null });
   },
 
