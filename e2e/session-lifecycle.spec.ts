@@ -203,19 +203,20 @@ test.describe("Session Lifecycle", () => {
 
   // ---- Error handling: invalid slug ---------------------------------------
 
-  test("creating session with invalid slug shows error without navigation", async ({
+  test("input auto-slugifies text and creates session", async ({
     page,
   }) => {
     await openProject(page);
     await page.getByText("+ New Session").click();
 
     const input = page.locator('input[aria-label="New session task name"]');
-    await input.fill("INVALID SLUG!");
+    await input.fill("Fix Auth Bug!!");
     await input.press("Enter");
 
-    await expect(page.getByText(/lowercase/i)).toBeVisible();
-    await expect(input).toBeVisible();
-    await expect(page.locator("header")).toContainText("my-app");
+    // Should auto-slugify to "fix-auth-bug" and create the session
+    await expect(input).not.toBeVisible({ timeout: 10000 });
+    const panel = page.locator(".border-l");
+    await expect(panel.getByText("fix-auth-bug")).toBeVisible();
   });
 
   // ---- Empty state --------------------------------------------------------

@@ -6,39 +6,75 @@ interface NewSessionInputProps {
   onDone: () => void;
 }
 
-const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/** Convert any text to a valid slug: lowercase, hyphens, no special chars. */
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-") // Replace non-alphanumeric runs with hyphens
+    .replace(/^-+|-+$/g, ""); // Trim leading/trailing hyphens
+}
 
-function isValidSlug(value: string): boolean {
-  return SLUG_PATTERN.test(value);
+/** Make a slug unique within existing sessions for this project. */
+function uniqueSlug(
+  base: string,
+  projectId: string,
+  sessions: Map<string, { projectId: string; task: string }>,
+): string {
+  const existing = new Set(
+    Array.from(sessions.values())
+      .filter((s) => s.projectId === projectId)
+      .map((s) => s.task),
+  );
+
+  if (!existing.has(base)) return base;
+
+  let counter = 2;
+  while (existing.has(`${base}-${counter}`)) counter++;
+  return `${base}-${counter}`;
 }
 
 const NewSessionInput: FC<NewSessionInputProps> = ({ projectId, onDone }) => {
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const createSession = useSessionStore((s) => s.createSession);
+  const sessions = useSessionStore((s) => s.sessions);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
   const handleSubmit = useCallback(async () => {
+    if (creating) return; // Prevent double-submit
+
     const trimmed = value.trim();
     if (!trimmed) {
       setError("Task name is required");
       return;
     }
-    if (!isValidSlug(trimmed)) {
-      setError("Use lowercase letters, digits, and hyphens only");
+
+    // Auto-slugify whatever the user typed
+    const slug = slugify(trimmed);
+    if (!slug) {
+      setError("Task name must contain at least one letter or digit");
       return;
     }
+
+    // Auto-deduplicate within project
+    const finalSlug = uniqueSlug(slug, projectId, sessions);
+
+    setCreating(true);
+    setError(null);
     try {
-      await createSession(projectId, trimmed);
+      await createSession(projectId, finalSlug);
       onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      setCreating(false);
     }
-  }, [value, projectId, createSession, onDone]);
+  }, [value, projectId, createSession, onDone, creating, sessions]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -47,10 +83,10 @@ const NewSessionInput: FC<NewSessionInputProps> = ({ projectId, onDone }) => {
         handleSubmit();
       } else if (e.key === "Escape") {
         e.preventDefault();
-        onDone();
+        if (!creating) onDone();
       }
     },
-    [handleSubmit, onDone],
+    [handleSubmit, onDone, creating],
   );
 
   const handleChange = useCallback(
@@ -63,21 +99,33 @@ const NewSessionInput: FC<NewSessionInputProps> = ({ projectId, onDone }) => {
 
   return (
     <div className="px-3 py-2">
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        placeholder="task-name"
-        className="w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-neutral-500"
-        aria-label="New session task name"
-        data-testid="new-session-input"
-      />
-      {error && (
-        <p className="mt-1 text-xs text-red-400" role="alert">
-          {error}
-        </p>
+      {creating ? (
+        <div className="flex items-center gap-2 py-1">
+          <div className="h-3 w-3 animate-spin rounded-full border-2 border-neutral-600 border-t-neutral-300" />
+          <span className="text-xs text-neutral-500">
+            Creating session...
+          </span>
+        </div>
+      ) : (
+        <>
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            placeholder="task name (e.g. fix auth bug)"
+            disabled={creating}
+            className="w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-neutral-500 disabled:opacity-50"
+            aria-label="New session task name"
+            data-testid="new-session-input"
+          />
+          {error && (
+            <p className="mt-1 text-xs text-red-400" role="alert">
+              {error}
+            </p>
+          )}
+        </>
       )}
     </div>
   );
@@ -85,4 +133,4 @@ const NewSessionInput: FC<NewSessionInputProps> = ({ projectId, onDone }) => {
 
 export default NewSessionInput;
 
-export { isValidSlug };
+export { slugify, uniqueSlug };

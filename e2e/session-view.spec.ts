@@ -30,7 +30,7 @@ test.describe("Session View", () => {
     ).toBeVisible();
   });
 
-  test("'+ New Session' click reveals input that validates slug format", async ({
+  test("'+ New Session' click reveals input that auto-slugifies", async ({
     page,
   }) => {
     await navigateToSessionView(page, "my-app");
@@ -39,9 +39,14 @@ test.describe("Session View", () => {
     const input = page.locator("input[placeholder]").last();
     await expect(input).toBeVisible();
 
-    await input.fill("Bad Name!");
+    // Input with spaces and uppercase is accepted and auto-slugified
+    await input.fill("My Cool Task");
     await input.press("Enter");
-    await expect(input).toBeVisible();
+
+    // Should create the session (input closes, card appears)
+    await expect(input).not.toBeVisible({ timeout: 10000 });
+    const panel = page.locator(".border-l");
+    await expect(panel.getByText("my-cool-task")).toBeVisible();
   });
 
   // Session card creation is covered in session-lifecycle.spec.ts
