@@ -33,7 +33,7 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
     try {
       await invoke("update_project_settings", {
         id: projectId,
-        settings: { commandTemplate },
+        settings: { command_template: commandTemplate },
       });
       onSaved?.();
       onClose();
