@@ -2,11 +2,11 @@ mod cleanup;
 mod commands;
 mod hook_server;
 pub mod identity;
-mod models;
-mod persistence;
-mod pty_engine;
-mod scrollback;
-mod state;
+pub mod models;
+pub mod persistence;
+pub mod pty_engine;
+pub mod scrollback;
+pub mod state;
 
 use persistence::Persistence;
 use state::AppState;

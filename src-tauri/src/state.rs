@@ -43,7 +43,6 @@ impl AppState {
     }
 
     /// Create AppState without an AppHandle (for tests).
-    #[cfg(test)]
     pub fn new_for_test(persistence: Persistence) -> Self {
         Self::new(persistence, None)
     }

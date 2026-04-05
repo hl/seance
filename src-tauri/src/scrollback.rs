@@ -17,7 +17,6 @@ impl ScrollbackBuffer {
         }
     }
 
-    #[cfg(test)]
     pub fn with_cap(cap: usize) -> Self {
         Self {
             buf: Vec::new(),

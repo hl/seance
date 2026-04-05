@@ -23,3 +23,7 @@ src-tauri/gen/
 # Tauri
 src-tauri/WixTools/
 src-tauri/icons/
+
+# Playwright
+test-results/
+playwright-report/
