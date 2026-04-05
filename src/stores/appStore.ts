@@ -27,18 +27,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   navigateToProject: (id: string, name: string) => {
     const state = get();
-    // If this window "belongs" to a different project (set via URL params
-    // or from a previous session view), open the new project in a new
-    // window instead. This covers both:
-    // 1. Pressing back from session view to picker, then clicking a
-    //    different project -> new window.
-    // 2. Being in session view and somehow navigating to a different
-    //    project -> new window.
-    //
-    // Clicking the *same* project always stays in this window.
-    const ownerProjectId = state.windowProjectId ?? state.activeProjectId;
-    if (ownerProjectId !== null && ownerProjectId !== id) {
-      // Fire-and-forget — open in new window.
+    // Only open a new window if this window was opened specifically for
+    // a DIFFERENT project via URL params (multi-window scenario).
+    // The windowProjectId is set only when a window is opened via
+    // open_project_window with query params.
+    if (state.windowProjectId && state.windowProjectId !== id) {
       void get().openProjectInNewWindow(id, name);
       return;
     }
@@ -53,8 +46,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
   navigateToPicker: () => {
     set({
       currentView: "picker",
-      // Keep activeProjectId so we know which project "belongs" to this window.
-      // This enables the "click same project = go back to session view" behavior.
     });
   },
 

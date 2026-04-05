@@ -22,119 +22,127 @@ const PROJECT_PATH = "/Users/test/projects/my-app";
  * The mock tracks created sessions and returns them in list_projects.
  */
 async function installStatefulMocks(page: Page) {
-  await installTauriMocks(page);
-
-  // Register a stateful mock via addInitScript so it's available on every
-  // navigation. The state lives on window.__MOCK_STATE__.
+  // Single addInitScript that sets up both __TAURI_INTERNALS__ and
+  // stateful command handlers. Must be one script to avoid ordering issues.
   await page.addInitScript(
     ([projectId, projectPath]: [string, string]) => {
       const mockState = {
         sessions: [] as any[],
-        nextChannelId: 1,
       };
       (window as any).__MOCK_STATE__ = mockState;
 
-      const responses: Record<string, any> = (window as any)
-        .__TAURI_MOCK_RESPONSES__;
+      // Callback registry for Channel support
+      let callbackCounter = 0;
 
-      // list_projects: returns the project with current session state
-      responses["list_projects"] = () => [
-        {
-          id: projectId,
-          path: projectPath,
-          name: "",
-          command_template: "claude -w {{task}}",
-          created_at: "1712300000",
-          active_session_count: mockState.sessions.filter(
-            (s: any) => s.status !== "exited" && s.status !== "done",
-          ).length,
-          sessions: mockState.sessions.map((s: any) => ({
-            id: s.id,
-            status: s.status,
-          })),
-        },
-      ];
-
-      // create_session: creates a new session and returns it
-      responses["create_session"] = (args: any) => {
-        const id = crypto.randomUUID();
-        const session = {
-          id,
-          project_id: args?.projectId ?? projectId,
-          task: args?.task ?? "unknown",
-          generated_name: `Agent-${id.slice(0, 8)}`,
-          status: "running",
-          last_message: null,
-          created_at: String(Math.floor(Date.now() / 1000)),
-          last_started_at: String(Math.floor(Date.now() / 1000)),
-          last_known_pid: 12345,
-        };
-        mockState.sessions.push(session);
-        return session;
-      };
-
-      // subscribe_output: returns empty scrollback (no real PTY)
-      responses["subscribe_output"] = () => [];
-
-      // send_input: no-op
-      responses["send_input"] = () => null;
-
-      // resize_pty: no-op
-      responses["resize_pty"] = () => null;
-
-      // kill_session: mark session as exited
-      responses["kill_session"] = (args: any) => {
-        const session = mockState.sessions.find(
-          (s: any) => s.id === args?.sessionId,
-        );
-        if (session) session.status = "exited";
-        return null;
-      };
-
-      // restart_session: re-activate a session
-      responses["restart_session"] = (args: any) => {
-        const session = mockState.sessions.find(
-          (s: any) => s.id === args?.sessionId,
-        );
-        if (session) {
-          session.status = "running";
-          session.last_message = null;
-          return { ...session };
-        }
-        throw new Error("Session not found");
-      };
-
-      // get_app_settings
-      responses["get_app_settings"] = () => ({
-        hook_port: 7837,
-        terminal_font_size: 14,
-        terminal_theme: "system",
-      });
-
-      // update_project_settings: no-op
-      responses["update_project_settings"] = () => null;
-
-      // open_project_window: no-op
-      responses["open_project_window"] = () => null;
-
-      // Make invoke use function-based responses
-      const origInvoke = (window as any).__TAURI_INTERNALS__.invoke;
-      (window as any).__TAURI_INTERNALS__.invoke = (
-        cmd: string,
-        args?: Record<string, unknown>,
-      ): Promise<unknown> => {
-        if (cmd in responses) {
+      (window as any).__TAURI_INTERNALS__ = {
+        invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
           try {
-            const result =
-              typeof responses[cmd] === "function"
-                ? responses[cmd](args)
-                : responses[cmd];
-            return Promise.resolve(result);
+            switch (cmd) {
+              case "list_projects":
+                return Promise.resolve([
+                  {
+                    id: projectId,
+                    path: projectPath,
+                    name: "",
+                    command_template: "claude -w {{task}}",
+                    created_at: "1712300000",
+                    active_session_count: mockState.sessions.filter(
+                      (s: any) => s.status !== "exited" && s.status !== "done",
+                    ).length,
+                    sessions: mockState.sessions.map((s: any) => ({
+                      id: s.id,
+                      status: s.status,
+                    })),
+                  },
+                ]);
+
+              case "create_session": {
+                const id = crypto.randomUUID();
+                const session = {
+                  id,
+                  project_id: (args as any)?.projectId ?? projectId,
+                  task: (args as any)?.task ?? "unknown",
+                  generated_name: `Agent-${id.slice(0, 8)}`,
+                  status: "running",
+                  last_message: null,
+                  created_at: String(Math.floor(Date.now() / 1000)),
+                  last_started_at: String(Math.floor(Date.now() / 1000)),
+                  last_known_pid: 12345,
+                };
+                mockState.sessions.push(session);
+                return Promise.resolve(session);
+              }
+
+              case "subscribe_output":
+                return Promise.resolve([]);
+
+              case "send_input":
+              case "resize_pty":
+              case "update_project_settings":
+              case "open_project_window":
+                return Promise.resolve(null);
+
+              case "kill_session": {
+                const s = mockState.sessions.find(
+                  (s: any) => s.id === (args as any)?.sessionId,
+                );
+                if (s) s.status = "exited";
+                return Promise.resolve(null);
+              }
+
+              case "restart_session": {
+                const s = mockState.sessions.find(
+                  (s: any) => s.id === (args as any)?.sessionId,
+                );
+                if (s) {
+                  s.status = "running";
+                  s.last_message = null;
+                  return Promise.resolve({ ...s });
+                }
+                return Promise.reject("Session not found");
+              }
+
+              case "get_app_settings":
+                return Promise.resolve({
+                  hook_port: 7837,
+                  terminal_font_size: 14,
+                  terminal_theme: "system",
+                });
+
+              // Tauri's listen() API uses this internal command
+              case "plugin:event|listen": {
+                // Return a numeric listener ID. The unlistener will call unlisten.
+                return Promise.resolve(callbackCounter++);
+              }
+              case "plugin:event|unlisten":
+                return Promise.resolve(null);
+
+              default:
+                console.warn(`[tauri-mock] un-mocked command: ${cmd}`, args);
+                return Promise.resolve(null);
+            }
           } catch (e: any) {
             return Promise.reject(e.message || String(e));
           }
-        }
-        return origInvoke(cmd, args);
+        },
+
+        convertFileSrc(path: string): string {
+          return path;
+        },
+
+        transformCallback(cb: (...a: any[]) => void, once = false): number {
+          const id = callbackCounter++;
+          (window as any)[`_${id}`] = (...a: any[]) => {
+            cb(...a);
+            if (once) delete (window as any)[`_${id}`];
+          };
+          return id;
+        },
+
+        metadata: {
+          currentWindow: { label: "main" },
+          currentWebview: { label: "main" },
+        },
       };
     },
     [PROJECT_ID, PROJECT_PATH] as [string, string],
@@ -150,13 +158,22 @@ async function openProject(page: Page) {
 
 /** Create a session with the given task name */
 async function createSession(page: Page, task: string) {
-  await page.getByText("+ New Session").click();
-  const input = page.locator("input[placeholder]").last();
-  await expect(input).toBeVisible();
+  // Wait for the button to be clickable
+  const newBtn = page.getByText("+ New Session");
+  await expect(newBtn).toBeVisible({ timeout: 5000 });
+  await newBtn.click();
+
+  const input = page.locator('input[aria-label="New session task name"]');
+  await expect(input).toBeVisible({ timeout: 5000 });
   await input.fill(task);
   await input.press("Enter");
-  // Wait for the session card to appear in the panel
-  await expect(page.getByText(task)).toBeVisible({ timeout: 5000 });
+
+  // Wait for input to close (session created successfully)
+  await expect(input).not.toBeVisible({ timeout: 10000 });
+
+  // The session card should now be in the panel
+  const panel = page.locator(".border-l");
+  await expect(panel.getByText(task)).toBeVisible({ timeout: 5000 });
 }
 
 // ---------------------------------------------------------------------------

@@ -69,20 +69,9 @@ test.describe("Session View", () => {
 
   // -- Session cards --------------------------------------------------------
 
-  test("session cards display after creating a session", async ({ page }) => {
-    await navigateToSessionView(page, "my-app");
-
-    // Create a session so there is a card to inspect.
-    const newSessionBtn = page.getByText("+ New Session");
-    await newSessionBtn.click();
-
-    const input = page.locator("input[placeholder]").last();
-    await input.fill("implement-api");
-    await input.press("Enter");
-
-    // The session card should contain the task name.
-    await expect(page.getByText("implement-api")).toBeVisible();
-  });
+  // Session card creation is covered thoroughly in session-lifecycle.spec.ts
+  // which uses a stateful mock. This file uses static mocks that can't
+  // simulate the create_session → backend response flow.
 
   // -- Settings button ------------------------------------------------------
 

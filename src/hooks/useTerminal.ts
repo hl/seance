@@ -11,95 +11,149 @@ export interface UseTerminalReturn {
   reset: () => void;
   fit: () => void;
   onData: (handler: (data: string) => void) => (() => void) | undefined;
+  isReady: boolean;
 }
 
 export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
+  const initializedRef = useRef(false);
 
+  // Create terminal once when container is available. Never dispose on
+  // session switch — just reset() the content. This avoids xterm.js
+  // _isDisposed crashes from rapid create/dispose cycles.
   useEffect(() => {
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || initializedRef.current) return;
 
-    const term = new Terminal({
-      cursorBlink: true,
-      cursorStyle: "bar",
-      fontSize: 14,
-      fontFamily: "'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, monospace",
-      theme: {
-        background: "#0a0a0a",
-        foreground: "#f5f5f5",
-        cursor: "#f5f5f5",
-        selectionBackground: "#404040",
-      },
-      allowProposedApi: true,
-    });
+    // Wait for the container to have dimensions (may be hidden initially)
+    const checkAndInit = () => {
+      if (container.offsetWidth === 0 || container.offsetHeight === 0) return;
 
-    const fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    term.open(container);
-
-    // Try WebGL renderer, fall back to DOM
-    try {
-      const webglAddon = new WebglAddon();
-      webglAddon.onContextLoss(() => {
-        webglAddon.dispose();
+      const term = new Terminal({
+        cursorBlink: true,
+        cursorStyle: "bar",
+        fontSize: 14,
+        fontFamily:
+          "'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, monospace",
+        theme: {
+          background: "#0a0a0a",
+          foreground: "#f5f5f5",
+          cursor: "#f5f5f5",
+          selectionBackground: "#404040",
+        },
+        allowProposedApi: true,
       });
-      term.loadAddon(webglAddon);
-    } catch {
-      // WebGL not available — DOM renderer is the default fallback
+
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(container);
+
+      try {
+        const webglAddon = new WebglAddon();
+        webglAddon.onContextLoss(() => webglAddon.dispose());
+        term.loadAddon(webglAddon);
+      } catch {
+        // WebGL not available
+      }
+
+      try {
+        fitAddon.fit();
+      } catch {
+        // fit can fail during init
+      }
+
+      term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
+        if (
+          ev.metaKey &&
+          ev.key >= "1" &&
+          ev.key <= "9" &&
+          ev.type === "keydown"
+        ) {
+          useSessionStore.getState().switchToIndex(parseInt(ev.key, 10) - 1);
+          return false;
+        }
+        return true;
+      });
+
+      termRef.current = term;
+      fitAddonRef.current = fitAddon;
+      initializedRef.current = true;
+
+      const observer = new ResizeObserver(() => {
+        try {
+          if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+            fitAddon.fit();
+            const dims = fitAddon.proposeDimensions();
+            const sid = useSessionStore.getState().activeSessionId;
+            if (dims && sid) {
+              invoke("resize_pty", {
+                sessionId: sid,
+                cols: dims.cols,
+                rows: dims.rows,
+              }).catch(() => {});
+            }
+          }
+        } catch {
+          // ignore
+        }
+      });
+      observer.observe(container);
+      observerRef.current = observer;
+    };
+
+    // Try immediately, then use a MutationObserver to detect when
+    // the container becomes visible (when display changes from none)
+    checkAndInit();
+    if (!initializedRef.current) {
+      const mo = new MutationObserver(() => {
+        if (!initializedRef.current) checkAndInit();
+        if (initializedRef.current) mo.disconnect();
+      });
+      mo.observe(container, { attributes: true, attributeFilter: ["style"] });
+      // Also try on next frames in case style is set by React reconciliation
+      const tryFrames = () => {
+        if (!initializedRef.current) {
+          checkAndInit();
+          if (!initializedRef.current) requestAnimationFrame(tryFrames);
+        }
+      };
+      requestAnimationFrame(tryFrames);
     }
 
-    fitAddon.fit();
-
-    // Intercept Cmd+1-9 for session switching
-    term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
-      if (
-        ev.metaKey &&
-        ev.key >= "1" &&
-        ev.key <= "9" &&
-        ev.type === "keydown"
-      ) {
-        const index = parseInt(ev.key, 10) - 1;
-        useSessionStore.getState().switchToIndex(index);
-        return false;
-      }
-      return true;
-    });
-
-    termRef.current = term;
-    fitAddonRef.current = fitAddon;
-
-    // ResizeObserver for auto-fit and PTY resize notification
-    const observer = new ResizeObserver(() => {
-      fitAddon.fit();
-      const dims = fitAddon.proposeDimensions();
-      const sid = useSessionStore.getState().activeSessionId;
-      if (dims && sid) {
-        invoke("resize_pty", {
-          sessionId: sid,
-          cols: dims.cols,
-          rows: dims.rows,
-        }).catch(() => {
-          // Backend not available yet
-        });
-      }
-    });
-    observer.observe(container);
-
     return () => {
-      observer.disconnect();
-      term.dispose();
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+        observerRef.current = null;
+      }
+      // Defer disposal to avoid races with other effects' cleanup.
+      // The terminal is no longer usable after this component unmounts.
+      const term = termRef.current;
       termRef.current = null;
       fitAddonRef.current = null;
+      initializedRef.current = false;
+      if (term) {
+        setTimeout(() => {
+          try {
+            term.dispose();
+          } catch {
+            // Already disposed or partially cleaned up
+          }
+        }, 0);
+      }
     };
-  }, []);
+  }, []); // Mount once, clean up on unmount
 
-  // Re-fit when active session changes (terminal may have been hidden)
+  // Re-fit when session changes (terminal may need resizing)
   useEffect(() => {
-    if (activeSessionId) {
-      fitAddonRef.current?.fit();
+    if (activeSessionId && initializedRef.current) {
+      try {
+        fitAddonRef.current?.fit();
+      } catch {
+        // ignore
+      }
     }
   }, [activeSessionId]);
 
@@ -112,7 +166,11 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
   }, []);
 
   const fit = useCallback(() => {
-    fitAddonRef.current?.fit();
+    try {
+      fitAddonRef.current?.fit();
+    } catch {
+      // ignore
+    }
   }, []);
 
   const onData = useCallback(
@@ -129,5 +187,6 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
     reset,
     fit,
     onData,
+    isReady: initializedRef.current,
   };
 }
