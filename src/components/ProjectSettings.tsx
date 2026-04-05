@@ -1,4 +1,4 @@
-import { type FC, useState, useCallback } from "react";
+import { type FC, useState, useCallback, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import CommandTemplateInput from "./CommandTemplateInput";
 
@@ -9,6 +9,12 @@ interface ProjectSettingsProps {
   initialCommandTemplate?: string;
   onClose: () => void;
   onSaved?: () => void;
+}
+
+interface ProjectData {
+  id: string;
+  command_template: string;
+  path: string;
 }
 
 const ProjectSettings: FC<ProjectSettingsProps> = ({
@@ -22,8 +28,30 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
   const [commandTemplate, setCommandTemplate] = useState(
     initialCommandTemplate,
   );
+  const [loading, setLoading] = useState(!initialCommandTemplate);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Fetch the current command template from the backend on mount
+  useEffect(() => {
+    if (initialCommandTemplate) return; // Already provided by caller
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const projects = await invoke<ProjectData[]>("list_projects");
+        const project = projects.find((p) => p.id === projectId);
+        if (!cancelled && project) {
+          setCommandTemplate(project.command_template);
+        }
+      } catch {
+        // Use empty default
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId, initialCommandTemplate]);
 
   const handleSave = useCallback(async () => {
     if (commandTemplate.trim() === "") return;
@@ -66,11 +94,15 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
 
         {/* Body */}
         <div className="px-5 py-4">
-          <CommandTemplateInput
-            value={commandTemplate}
-            onChange={setCommandTemplate}
-            projectDir={projectPath}
-          />
+          {loading ? (
+            <p className="py-4 text-center text-sm text-neutral-500">Loading...</p>
+          ) : (
+            <CommandTemplateInput
+              value={commandTemplate}
+              onChange={setCommandTemplate}
+              projectDir={projectPath}
+            />
+          )}
         </div>
 
         {/* Footer */}
