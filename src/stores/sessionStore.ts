@@ -60,7 +60,7 @@ interface SessionState {
   ) => void;
   updateName: (sessionId: string, name: string) => void;
   setActiveProject: (projectId: string | null) => void;
-  loadSessions: (projectId: string) => void;
+  loadSessions: (projectId: string) => Promise<void>;
   switchToIndex: (index: number) => void;
 }
 
@@ -164,8 +164,20 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     set({ activeProjectId: projectId });
   },
 
-  loadSessions: (_projectId: string) => {
-    set({ sessions: new Map(), activeSessionId: null });
+  loadSessions: async (projectId: string) => {
+    try {
+      const backendSessions = await invoke<BackendSession[]>("list_sessions", {
+        projectId,
+      });
+      const next = new Map<string, SessionData>();
+      for (const s of backendSessions) {
+        next.set(s.id, backendToFrontend(s));
+      }
+      set({ sessions: next, activeSessionId: null, activeProjectId: projectId });
+    } catch {
+      // Backend not available — start with empty
+      set({ sessions: new Map(), activeSessionId: null, activeProjectId: projectId });
+    }
   },
 
   switchToIndex: (index: number) => {

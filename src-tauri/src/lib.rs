@@ -71,6 +71,7 @@ pub fn run() {
             commands::projects::update_project_settings,
             commands::settings::get_app_settings,
             commands::settings::update_app_settings,
+            commands::sessions::list_sessions,
             commands::sessions::create_session,
             commands::sessions::kill_session,
             commands::sessions::send_input,

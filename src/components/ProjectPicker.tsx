@@ -61,7 +61,7 @@ const ProjectPicker: FC = () => {
   const handleCardClick = useCallback(
     (project: ProjectData) => {
       const name = project.name || projectNameFromPath(project.path);
-      navigateToProject(project.id, name);
+      navigateToProject(project.id, name, project.path);
     },
     [navigateToProject],
   );

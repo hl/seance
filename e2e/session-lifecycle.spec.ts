@@ -127,17 +127,25 @@ test.describe("Session Lifecycle", () => {
     await expect(page.getByText("+ New Session")).toBeVisible();
   });
 
-  test("re-entering a project shows the terminal for the active session", async ({
+  test("re-entering a project shows sessions and allows reactivation", async ({
     page,
   }) => {
     await openProject(page);
     await createSession(page, "terminal-test");
     await expect(page.getByText("No sessions yet")).not.toBeVisible();
 
+    // Go back and re-enter
     await page.locator('header button[title="Back to projects"]').click();
     await page.getByRole("heading", { name: "my-app" }).click();
 
-    await expect(page.getByText("No sessions yet")).not.toBeVisible();
+    // Session should still be in the panel
+    const panel = page.locator(".border-l");
+    await expect(panel.getByText("terminal-test")).toBeVisible();
+
+    // Click the session to reactivate it
+    await page.locator("button").filter({ hasText: "terminal-test" }).click();
+
+    // Terminal should now be visible
     const terminalArea = page.locator(".xterm");
     await expect(terminalArea).toBeVisible({ timeout: 5000 });
   });

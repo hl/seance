@@ -12,6 +12,7 @@ interface SessionCardProps {
 const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
   const switchSession = useSessionStore((s) => s.switchSession);
   const killSession = useSessionStore((s) => s.killSession);
+  const restartSession = useSessionStore((s) => s.restartSession);
 
   const handleClick = useCallback(() => {
     switchSession(session.id);
@@ -25,7 +26,16 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
     [killSession, session.id],
   );
 
+  const handleRestart = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      restartSession(session.id);
+    },
+    [restartSession, session.id],
+  );
+
   const isAlive = session.status !== "exited" && session.status !== "done";
+  const canRestart = session.status === "exited";
 
   return (
     <button
@@ -59,6 +69,23 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
             title="Kill session"
           >
             ✕
+          </span>
+        )}
+        {canRestart && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={handleRestart}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+                restartSession(session.id);
+              }
+            }}
+            className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-neutral-700 hover:text-neutral-300 group-hover:inline-block"
+            title="Restart session"
+          >
+            ↻
           </span>
         )}
       </div>

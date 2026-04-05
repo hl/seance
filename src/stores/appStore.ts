@@ -7,11 +7,12 @@ interface AppState {
   currentView: AppView;
   activeProjectId: string | null;
   activeProjectName: string | null;
+  activeProjectPath: string | null;
 
   /** The project this window was opened for (set from URL params). */
   windowProjectId: string | null;
 
-  navigateToProject: (id: string, name: string) => void;
+  navigateToProject: (id: string, name: string, path?: string) => void;
   navigateToPicker: () => void;
   navigateToSettings: () => void;
   setActiveProject: (id: string, name: string) => void;
@@ -23,9 +24,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
   currentView: "picker",
   activeProjectId: null,
   activeProjectName: null,
+  activeProjectPath: null,
   windowProjectId: null,
 
-  navigateToProject: (id: string, name: string) => {
+  navigateToProject: (id: string, name: string, path?: string) => {
     const state = get();
     // Only open a new window if this window was opened specifically for
     // a DIFFERENT project via URL params (multi-window scenario).
@@ -40,6 +42,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       currentView: "session-view",
       activeProjectId: id,
       activeProjectName: name,
+      activeProjectPath: path ?? null,
     });
   },
 

@@ -138,6 +138,16 @@ export class MockBackend {
                 case "list_projects":
                   return Promise.resolve(projectList());
 
+                case "list_sessions": {
+                  const pid = args?.projectId as string;
+                  const result: any[] = [];
+                  for (const s of sessions.values()) {
+                    if (s.project_id === pid) result.push({ ...s });
+                  }
+                  result.sort((a: any, b: any) => a.created_at.localeCompare(b.created_at));
+                  return Promise.resolve(result);
+                }
+
                 case "add_project": {
                   const id = crypto.randomUUID();
                   const project = {

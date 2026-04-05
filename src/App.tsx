@@ -8,6 +8,7 @@ function App() {
   const currentView = useAppStore((s) => s.currentView);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const activeProjectName = useAppStore((s) => s.activeProjectName);
+  const activeProjectPath = useAppStore((s) => s.activeProjectPath);
   const navigateToProject = useAppStore((s) => s.navigateToProject);
   const navigateToPicker = useAppStore((s) => s.navigateToPicker);
   const setWindowProject = useAppStore((s) => s.setWindowProject);
@@ -49,6 +50,7 @@ function App() {
         <SessionView
           projectId={activeProjectId ?? ""}
           projectName={activeProjectName ?? ""}
+          projectPath={activeProjectPath ?? ""}
           onBack={handleBack}
         />
       );

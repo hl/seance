@@ -1,20 +1,31 @@
-import { type FC, useState } from "react";
+import { type FC, useState, useEffect } from "react";
 import TerminalView from "./Terminal";
 import SessionPanel from "./SessionPanel";
 import ProjectSettings from "./ProjectSettings";
+import { useSessionStore } from "../stores/sessionStore";
 
 interface SessionViewProps {
   projectId: string;
   projectName: string;
+  projectPath?: string;
   onBack: () => void;
 }
 
 const SessionView: FC<SessionViewProps> = ({
   projectId,
   projectName,
+  projectPath = "",
   onBack,
 }) => {
   const [showSettings, setShowSettings] = useState(false);
+  const loadSessions = useSessionStore((s) => s.loadSessions);
+  const setActiveProject = useSessionStore((s) => s.setActiveProject);
+
+  // Load existing sessions from backend when entering a project
+  useEffect(() => {
+    setActiveProject(projectId);
+    loadSessions(projectId);
+  }, [projectId, loadSessions, setActiveProject]);
 
   return (
     <div className="flex h-screen flex-col bg-neutral-950">
@@ -45,7 +56,7 @@ const SessionView: FC<SessionViewProps> = ({
         <ProjectSettings
           projectId={projectId}
           projectName={projectName}
-          projectPath=""
+          projectPath={projectPath}
           onClose={() => setShowSettings(false)}
         />
       )}

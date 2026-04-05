@@ -2,16 +2,17 @@ import { type FC, useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
 
+// Matches the Rust AppSettings struct (snake_case)
 interface AppSettings {
-  hookServerPort: number;
-  terminalFontSize: number;
-  terminalTheme: "light" | "dark" | "system";
+  hook_port: number;
+  terminal_font_size: number;
+  terminal_theme: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
-  hookServerPort: 7837,
-  terminalFontSize: 14,
-  terminalTheme: "system",
+  hook_port: 7837,
+  terminal_font_size: 14,
+  terminal_theme: "system",
 };
 
 const Settings: FC = () => {
@@ -101,9 +102,9 @@ const Settings: FC = () => {
               type="number"
               min={1024}
               max={65535}
-              value={settings.hookServerPort}
+              value={settings.hook_port}
               onChange={(e) =>
-                updateField("hookServerPort", Number(e.target.value))
+                updateField("hook_port", Number(e.target.value))
               }
               className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-500"
             />
@@ -125,9 +126,9 @@ const Settings: FC = () => {
               type="number"
               min={8}
               max={32}
-              value={settings.terminalFontSize}
+              value={settings.terminal_font_size}
               onChange={(e) =>
-                updateField("terminalFontSize", Number(e.target.value))
+                updateField("terminal_font_size", Number(e.target.value))
               }
               className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-500"
             />
@@ -146,11 +147,11 @@ const Settings: FC = () => {
             </label>
             <select
               id="theme"
-              value={settings.terminalTheme}
+              value={settings.terminal_theme}
               onChange={(e) =>
                 updateField(
-                  "terminalTheme",
-                  e.target.value as AppSettings["terminalTheme"],
+                  "terminal_theme",
+                  e.target.value,
                 )
               }
               className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-500"

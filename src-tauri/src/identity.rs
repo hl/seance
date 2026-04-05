@@ -71,7 +71,7 @@ fn parse_name_from_json(json_str: &str) -> Result<String, String> {
 }
 
 /// Generate the deterministic placeholder name from a UUID.
-fn placeholder_name(session_id: Uuid) -> String {
+pub fn placeholder_name(session_id: Uuid) -> String {
     let uuid_str = session_id.to_string();
     format!("Agent-{}", &uuid_str[..8])
 }

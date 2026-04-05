@@ -14,6 +14,22 @@ fn timestamp_now() -> String {
     format!("{}", duration.as_secs())
 }
 
+/// List all sessions for a given project.
+#[tauri::command]
+pub async fn list_sessions(
+    state: tauri::State<'_, Arc<AppState>>,
+    project_id: Uuid,
+) -> Result<Vec<Session>, String> {
+    let sessions = state.sessions.read().await;
+    let mut result: Vec<Session> = sessions
+        .values()
+        .filter(|s| s.project_id == project_id)
+        .cloned()
+        .collect();
+    result.sort_by(|a, b| a.created_at.cmp(&b.created_at));
+    Ok(result)
+}
+
 /// Create a new session in the given project, spawning a PTY with the
 /// resolved command template.
 #[tauri::command]
@@ -40,9 +56,19 @@ pub async fn create_session(
 
     // Generate session identity.
     let session_id = Uuid::new_v4();
-    let short_id = &session_id.to_string()[..8];
-    // Placeholder name — Unit 5 will replace this with Haiku-generated names.
-    let generated_name = format!("Agent-{}", short_id);
+    let generated_name = {
+        let app_handle_opt = state.app_handle.read().await;
+        if let Some(ref app_handle) = *app_handle_opt {
+            crate::identity::generate_session_name(
+                session_id,
+                state.inner().clone(),
+                app_handle.clone(),
+            )
+            .await
+        } else {
+            crate::identity::placeholder_name(session_id)
+        }
+    };
 
     // Resolve the command template.
     let command_line =

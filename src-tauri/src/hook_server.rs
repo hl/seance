@@ -28,6 +28,7 @@ struct StatusUpdate {
 
 /// Event payload emitted to the frontend when a session status changes.
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct SessionStatusEvent {
     session_id: Uuid,
     status: SessionStatus,
@@ -171,7 +172,9 @@ mod tests {
             last_message: Some("Working on it".to_string()),
         };
         let json = serde_json::to_value(&event).unwrap();
+        // Verify camelCase serialization (matches frontend expectations)
+        assert_eq!(json["sessionId"], "00000000-0000-0000-0000-000000000000");
         assert_eq!(json["status"], "thinking");
-        assert_eq!(json["last_message"], "Working on it");
+        assert_eq!(json["lastMessage"], "Working on it");
     }
 }
