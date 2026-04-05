@@ -9,10 +9,17 @@ pub struct ProjectSettings {
 }
 
 #[derive(serde::Serialize)]
+pub struct SessionSummary {
+    pub id: Uuid,
+    pub status: crate::models::SessionStatus,
+}
+
+#[derive(serde::Serialize)]
 pub struct ProjectWithSessions {
     #[serde(flatten)]
     pub project: Project,
     pub active_session_count: usize,
+    pub sessions: Vec<SessionSummary>,
 }
 
 #[tauri::command]
@@ -25,20 +32,28 @@ pub async fn list_projects(
     let mut result: Vec<ProjectWithSessions> = projects
         .values()
         .map(|p| {
-            let active_count = sessions
+            let project_sessions: Vec<SessionSummary> = sessions
                 .values()
+                .filter(|s| s.project_id == p.id)
+                .map(|s| SessionSummary {
+                    id: s.id,
+                    status: s.status,
+                })
+                .collect();
+            let active_count = project_sessions
+                .iter()
                 .filter(|s| {
-                    s.project_id == p.id
-                        && !matches!(
-                            s.status,
-                            crate::models::SessionStatus::Exited
-                                | crate::models::SessionStatus::Done
-                        )
+                    !matches!(
+                        s.status,
+                        crate::models::SessionStatus::Exited
+                            | crate::models::SessionStatus::Done
+                    )
                 })
                 .count();
             ProjectWithSessions {
                 project: p.clone(),
                 active_session_count: active_count,
+                sessions: project_sessions,
             }
         })
         .collect();
