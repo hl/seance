@@ -2,7 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { MockBackend } from "./helpers/mock-backend";
 
 async function createSession(page: Page, task: string) {
-  await page.getByText("+ New Session").click();
+  await page.getByText("+ New Agent").click();
   const input = page.locator('input[aria-label="New session task name"]');
   await input.fill(task);
   await input.press("Enter");
@@ -35,7 +35,7 @@ test.describe("Multi-Project", () => {
     await expect(page.locator("header")).toContainText("project-beta");
 
     // Beta should have no sessions — alpha's session should NOT appear
-    await expect(page.getByText("No sessions yet")).toBeVisible();
+    await expect(page.getByText("No agents yet")).toBeVisible();
     await expect(page.getByText("alpha-task")).not.toBeVisible();
 
     // Create a beta session

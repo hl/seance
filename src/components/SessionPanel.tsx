@@ -30,7 +30,7 @@ const SessionPanel: FC<SessionPanelProps> = ({ projectId }) => {
     <div className="flex w-70 shrink-0 flex-col border-l border-neutral-800 bg-neutral-950">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
-        <h2 className="text-sm font-medium text-neutral-300">Sessions</h2>
+        <h2 className="text-sm font-medium text-neutral-300">Agents</h2>
         <span className="text-xs text-neutral-600">
           {projectSessions.length}
         </span>
@@ -57,7 +57,7 @@ const SessionPanel: FC<SessionPanelProps> = ({ projectId }) => {
             onClick={handleNewSession}
             className="w-full px-3 py-2 text-left text-sm text-neutral-500 transition-colors hover:bg-neutral-800/50 hover:text-neutral-300"
           >
-            + New Session
+            + New Agent
           </button>
         )}
       </div>

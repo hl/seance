@@ -89,7 +89,7 @@ const ProjectCard: FC<ProjectCardProps> = ({
       <div className="mt-3 flex items-center gap-2">
         <span className="rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-400">
           {activeSessionCount}{" "}
-          {activeSessionCount === 1 ? "session" : "sessions"}
+          {activeSessionCount === 1 ? "agent" : "agents"}
         </span>
         <AvatarStack sessionIds={sessionIds} />
       </div>

@@ -43,7 +43,7 @@ test.describe("Project Picker", () => {
 
     await expect(page.locator("header")).toContainText("my-app");
     await expect(page.locator("header button").first()).toBeVisible();
-    await expect(page.getByText("+ New Session")).toBeVisible();
+    await expect(page.getByText("+ New Agent")).toBeVisible();
   });
 
   test("Session View empty state shows Sessions header and new-session button", async ({
@@ -59,8 +59,8 @@ test.describe("Project Picker", () => {
       .click();
 
     await expect(
-      page.getByRole("heading", { name: "Sessions" }),
+      page.getByRole("heading", { name: "Agents" }),
     ).toBeVisible();
-    await expect(page.getByText("+ New Session")).toBeVisible();
+    await expect(page.getByText("+ New Agent")).toBeVisible();
   });
 });

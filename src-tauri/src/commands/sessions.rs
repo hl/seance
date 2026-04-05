@@ -54,21 +54,22 @@ pub async fn create_session(
         return Err("Project has no command template configured".to_string());
     }
 
-    // Generate session identity.
+    // Generate session identity — use placeholder immediately, generate
+    // the real name in the background so session creation is instant.
     let session_id = Uuid::new_v4();
-    let generated_name = {
+    let generated_name = crate::identity::placeholder_name(session_id);
+
+    // Schedule background name generation (will update + emit event when done)
+    {
         let app_handle_opt = state.app_handle.read().await;
         if let Some(ref app_handle) = *app_handle_opt {
-            crate::identity::generate_session_name(
+            crate::identity::schedule_background_name(
                 session_id,
                 state.inner().clone(),
                 app_handle.clone(),
-            )
-            .await
-        } else {
-            crate::identity::placeholder_name(session_id)
+            );
         }
-    };
+    }
 
     // Resolve the command template.
     let command_line =

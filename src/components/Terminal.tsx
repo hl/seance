@@ -87,7 +87,7 @@ const TerminalView: FC = () => {
       {!activeSessionId && (
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="text-neutral-500">
-            No sessions yet. Create one to get started.
+            No agents yet. Create one to get started.
           </p>
         </div>
       )}

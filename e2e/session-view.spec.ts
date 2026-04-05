@@ -34,7 +34,7 @@ test.describe("Session View", () => {
     page,
   }) => {
     await navigateToSessionView(page, "my-app");
-    await page.getByText("+ New Session").click();
+    await page.getByText("+ New Agent").click();
 
     const input = page.locator("input[placeholder]").last();
     await expect(input).toBeVisible();

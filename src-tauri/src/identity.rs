@@ -100,6 +100,40 @@ pub async fn generate_session_name(
 /// Maximum number of retry attempts for name generation.
 const MAX_NAME_RETRIES: u32 = 3;
 
+/// Spawn a background task that generates a name immediately (no delay)
+/// and updates the session when done. If the first attempt fails, falls
+/// back to schedule_retry with exponential backoff.
+pub fn schedule_background_name(
+    session_id: Uuid,
+    state: Arc<AppState>,
+    app_handle: tauri::AppHandle,
+) {
+    let state_clone = state.clone();
+    let handle_clone = app_handle.clone();
+    tauri::async_runtime::spawn(async move {
+        match try_generate_name().await {
+            Ok(name) => {
+                let mut sessions = state_clone.sessions.write().await;
+                if let Some(session) = sessions.get_mut(&session_id) {
+                    session.generated_name = name.clone();
+                }
+                drop(sessions);
+
+                if let Err(e) = state_clone.persist().await {
+                    eprintln!("Failed to persist after name generation: {}", e);
+                }
+
+                let event_name = format!("session-name-updated-{}", session_id);
+                let _ = handle_clone.emit(&event_name, name);
+            }
+            Err(_) => {
+                // First attempt failed — schedule retries with backoff
+                schedule_retry(session_id, state_clone, handle_clone);
+            }
+        }
+    });
+}
+
 /// Spawn a background task that retries name generation up to MAX_NAME_RETRIES
 /// times with exponential backoff. On success updates the session in AppState,
 /// persists, and emits a Tauri event so the frontend can update.
