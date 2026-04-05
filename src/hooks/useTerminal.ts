@@ -10,6 +10,7 @@ export interface UseTerminalReturn {
   writeData: (data: string | Uint8Array) => void;
   reset: () => void;
   fit: () => void;
+  fitAndGetDimensions: () => { cols: number; rows: number } | null;
   onData: (handler: (data: string) => void) => (() => void) | undefined;
   isReady: boolean;
 }
@@ -173,6 +174,17 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
     }
   }, []);
 
+  const fitAndGetDimensions = useCallback((): { cols: number; rows: number } | null => {
+    try {
+      fitAddonRef.current?.fit();
+      const dims = fitAddonRef.current?.proposeDimensions();
+      if (dims) return { cols: dims.cols, rows: dims.rows };
+    } catch {
+      // ignore
+    }
+    return null;
+  }, []);
+
   const onData = useCallback(
     (handler: (data: string) => void): (() => void) | undefined => {
       const disposable = termRef.current?.onData(handler);
@@ -185,6 +197,7 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
     terminalRef: containerRef,
     writeData,
     reset,
+    fitAndGetDimensions,
     fit,
     onData,
     isReady: initializedRef.current,

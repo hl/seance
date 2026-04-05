@@ -8,7 +8,7 @@ import "@xterm/xterm/css/xterm.css";
 
 const TerminalView: FC = () => {
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
-  const { terminalRef, writeData, reset, fit, onData } =
+  const { terminalRef, writeData, reset, fit, fitAndGetDimensions, onData } =
     useTerminal(activeSessionId);
   const channelRef = useRef<Channel<number[]> | null>(null);
   const [subscribeError, setSubscribeError] = useState(false);
@@ -40,7 +40,15 @@ const TerminalView: FC = () => {
         });
         if (!cancelled) {
           writeData(new Uint8Array(scrollback));
-          fit();
+          // Fit the terminal and sync PTY dimensions
+          const dims = fitAndGetDimensions();
+          if (dims && activeSessionId) {
+            invoke("resize_pty", {
+              sessionId: activeSessionId,
+              cols: dims.cols,
+              rows: dims.rows,
+            }).catch(() => {});
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -56,7 +64,7 @@ const TerminalView: FC = () => {
       cancelled = true;
       channelRef.current = null;
     };
-  }, [activeSessionId, writeData, reset, fit]);
+  }, [activeSessionId, writeData, reset, fit, fitAndGetDimensions]);
 
   // Forward terminal input to PTY
   useEffect(() => {
