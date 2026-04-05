@@ -97,27 +97,35 @@ pub async fn generate_session_name(
     name
 }
 
-/// Spawn a background task that waits 5 seconds, retries name generation,
-/// and on success updates the session in AppState, persists, and emits
-/// a Tauri event so the frontend can update.
+/// Maximum number of retry attempts for name generation.
+const MAX_NAME_RETRIES: u32 = 3;
+
+/// Spawn a background task that retries name generation up to MAX_NAME_RETRIES
+/// times with exponential backoff. On success updates the session in AppState,
+/// persists, and emits a Tauri event so the frontend can update.
 fn schedule_retry(session_id: Uuid, state: Arc<AppState>, app_handle: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(Duration::from_secs(5)).await;
+        for attempt in 0..MAX_NAME_RETRIES {
+            let delay = Duration::from_secs(5 * (1 << attempt)); // 5s, 10s, 20s
+            tokio::time::sleep(delay).await;
 
-        if let Ok(name) = try_generate_name().await {
-            let mut sessions = state.sessions.write().await;
-            if let Some(session) = sessions.get_mut(&session_id) {
-                session.generated_name = name.clone();
+            if let Ok(name) = try_generate_name().await {
+                let mut sessions = state.sessions.write().await;
+                if let Some(session) = sessions.get_mut(&session_id) {
+                    session.generated_name = name.clone();
+                }
+                drop(sessions);
+
+                if let Err(e) = state.persist().await {
+                    eprintln!("Failed to persist after name retry: {}", e);
+                }
+
+                let event_name = format!("session-name-updated-{}", session_id);
+                let _ = app_handle.emit(&event_name, name);
+                return; // Success — stop retrying
             }
-            drop(sessions);
-
-            if let Err(e) = state.persist().await {
-                eprintln!("Failed to persist after name retry: {}", e);
-            }
-
-            let event_name = format!("session-name-updated-{}", session_id);
-            let _ = app_handle.emit(&event_name, name);
         }
+        // All retries exhausted — placeholder name stays
     });
 }
 

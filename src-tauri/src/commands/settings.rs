@@ -15,6 +15,10 @@ pub async fn update_app_settings(
     state: tauri::State<'_, Arc<AppState>>,
     settings: AppSettings,
 ) -> Result<(), String> {
+    if settings.hook_port == 0 {
+        return Err("Hook port cannot be 0".to_string());
+    }
+
     {
         let mut current = state.settings.write().await;
         *current = settings;

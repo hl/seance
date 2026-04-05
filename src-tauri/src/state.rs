@@ -11,10 +11,12 @@ pub struct AppState {
     pub settings: RwLock<AppSettings>,
     pub session_handles: RwLock<HashMap<Uuid, SessionHandle>>,
     pub persistence: Persistence,
+    /// Tauri AppHandle for emitting events from non-command contexts (exit watcher, etc.)
+    pub app_handle: RwLock<Option<tauri::AppHandle>>,
 }
 
 impl AppState {
-    pub fn new(persistence: Persistence) -> Self {
+    pub fn new(persistence: Persistence, app_handle: Option<tauri::AppHandle>) -> Self {
         let persisted = persistence.load();
 
         let mut projects = HashMap::new();
@@ -36,7 +38,14 @@ impl AppState {
             settings: RwLock::new(persisted.settings),
             session_handles: RwLock::new(HashMap::new()),
             persistence,
+            app_handle: RwLock::new(app_handle),
         }
+    }
+
+    /// Create AppState without an AppHandle (for tests).
+    #[cfg(test)]
+    pub fn new_for_test(persistence: Persistence) -> Self {
+        Self::new(persistence, None)
     }
 
     pub async fn persist(&self) -> Result<(), String> {

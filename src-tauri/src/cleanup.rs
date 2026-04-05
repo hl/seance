@@ -47,7 +47,7 @@ pub fn kill_all_sessions(state: &Arc<AppState>) {
         let handles = state.session_handles.blocking_read();
         handles
             .values()
-            .filter_map(|h| h.pid.map(|p| p as i32))
+            .filter_map(|h| h.pid.and_then(|p| i32::try_from(p).ok()))
             .collect()
     };
 
@@ -89,7 +89,7 @@ pub fn cleanup_orphaned_processes(state: &Arc<AppState>) {
         let sessions = state.sessions.blocking_read();
         sessions
             .values()
-            .filter_map(|s| s.last_known_pid.map(|p| p as i32))
+            .filter_map(|s| s.last_known_pid.and_then(|p| i32::try_from(p).ok()))
             .collect()
     };
 
@@ -111,7 +111,7 @@ mod tests {
     fn make_test_state() -> Arc<AppState> {
         let dir = tempfile::tempdir().unwrap();
         let persistence = Persistence::new(dir.path());
-        Arc::new(AppState::new(persistence))
+        Arc::new(AppState::new_for_test(persistence))
     }
 
     #[test]

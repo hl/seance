@@ -1,4 +1,4 @@
-import { type FC, useEffect, useRef } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Channel } from "@tauri-apps/api/core";
 import { useTerminal } from "../hooks/useTerminal";
@@ -11,6 +11,7 @@ const TerminalView: FC = () => {
   const { terminalRef, writeData, reset, fit, onData } =
     useTerminal(activeSessionId);
   const channelRef = useRef<Channel<number[]> | null>(null);
+  const [subscribeError, setSubscribeError] = useState(false);
 
   useSessionEvents(activeSessionId);
 
@@ -20,6 +21,7 @@ const TerminalView: FC = () => {
 
     // Reset terminal for new session
     reset();
+    setSubscribeError(false);
 
     // Create a new channel for live output
     const channel = new Channel<number[]>();
@@ -40,8 +42,11 @@ const TerminalView: FC = () => {
           writeData(new Uint8Array(scrollback));
           fit();
         }
-      } catch {
-        // Backend not available yet — will be wired in a later unit
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Failed to subscribe to session output:", err);
+          setSubscribeError(true);
+        }
       }
     }
 
@@ -82,6 +87,11 @@ const TerminalView: FC = () => {
   return (
     <div className="flex-1 overflow-hidden bg-neutral-950 p-1">
       <div ref={terminalRef} className="h-full w-full" />
+      {subscribeError && (
+        <div className="absolute bottom-2 left-2 rounded bg-red-900/80 px-3 py-1 text-xs text-red-200">
+          Failed to connect to session. Try switching sessions.
+        </div>
+      )}
     </div>
   );
 };

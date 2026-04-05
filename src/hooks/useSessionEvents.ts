@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { listen } from "@tauri-apps/api/event";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useSessionStore } from "../stores/sessionStore";
 import type { SessionStatus } from "../stores/sessionStore";
 
@@ -22,14 +22,14 @@ export function useSessionEvents(sessionId: string | null): void {
   useEffect(() => {
     if (!sessionId) return;
 
-    const unlisteners: Array<() => void> = [];
+    let cancelled = false;
+    const unlisteners: UnlistenFn[] = [];
 
-    async function subscribe() {
-      if (!sessionId) return;
-
-      const unStatus = await listen<StatusPayload>(
-        `session-status-${sessionId}`,
-        (event) => {
+    // Subscribe to all events, tracking cleanup functions.
+    const id = sessionId;
+    Promise.all([
+      listen<StatusPayload>(`session-status-${id}`, (event) => {
+        if (!cancelled) {
           useSessionStore
             .getState()
             .updateStatus(
@@ -37,34 +37,33 @@ export function useSessionEvents(sessionId: string | null): void {
               event.payload.status,
               event.payload.message,
             );
-        },
-      );
-      unlisteners.push(unStatus);
-
-      const unExited = await listen<{ sessionId: string }>(
-        `session-exited-${sessionId}`,
-        (event) => {
+        }
+      }),
+      listen<{ sessionId: string }>(`session-exited-${id}`, (event) => {
+        if (!cancelled) {
           useSessionStore
             .getState()
             .updateStatus(event.payload.sessionId, "exited");
-        },
-      );
-      unlisteners.push(unExited);
-
-      const unName = await listen<NamePayload>(
-        `session-name-updated-${sessionId}`,
-        (event) => {
+        }
+      }),
+      listen<NamePayload>(`session-name-updated-${id}`, (event) => {
+        if (!cancelled) {
           useSessionStore
             .getState()
             .updateName(event.payload.sessionId, event.payload.name);
-        },
-      );
-      unlisteners.push(unName);
-    }
-
-    subscribe();
+        }
+      }),
+    ]).then((fns) => {
+      if (cancelled) {
+        // Component unmounted before listeners registered — clean up immediately
+        fns.forEach((fn) => fn());
+      } else {
+        unlisteners.push(...fns);
+      }
+    });
 
     return () => {
+      cancelled = true;
       for (const unlisten of unlisteners) {
         unlisten();
       }

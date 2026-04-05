@@ -24,7 +24,7 @@ pub fn run() {
                 .app_data_dir()
                 .expect("failed to resolve app data dir");
             let persistence = Persistence::new(&app_data_dir);
-            let state = Arc::new(AppState::new(persistence));
+            let state = Arc::new(AppState::new(persistence, Some(app.handle().clone())));
 
             // Clean up orphaned processes from a previous crash/unclean exit.
             cleanup::cleanup_orphaned_processes(&state);

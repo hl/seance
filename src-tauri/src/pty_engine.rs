@@ -11,6 +11,34 @@ const BATCH_TIMEOUT: Duration = Duration::from_millis(8);
 /// Maximum bytes to accumulate before flushing a batch, regardless of time.
 const BATCH_MAX_BYTES: usize = 200 * 1024;
 
+/// A shared sender that can be swapped atomically. The reader thread holds
+/// a reference and checks it on each send, so channel swaps don't kill the
+/// reader.
+pub struct SwappableSender {
+    inner: Mutex<mpsc::Sender<Vec<u8>>>,
+}
+
+impl SwappableSender {
+    pub fn new(tx: mpsc::Sender<Vec<u8>>) -> Self {
+        Self {
+            inner: Mutex::new(tx),
+        }
+    }
+
+    /// Send data using the current sender. Returns Err if the receiver is gone.
+    pub fn blocking_send(&self, data: Vec<u8>) -> Result<(), ()> {
+        let tx = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        tx.blocking_send(data).map_err(|_| ())
+    }
+
+    /// Swap the inner sender for a new one. The old receiver will see the
+    /// channel close, but the reader thread keeps running with the new sender.
+    pub fn swap(&self, new_tx: mpsc::Sender<Vec<u8>>) {
+        let mut tx = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        *tx = new_tx;
+    }
+}
+
 /// Holds the runtime resources for an active PTY session.
 pub struct SessionHandle {
     pub killer: Box<dyn ChildKiller + Send + Sync>,
@@ -19,16 +47,17 @@ pub struct SessionHandle {
     pub master: Arc<Mutex<Box<dyn MasterPty + Send>>>,
     /// The forwarder task join handle — dropping it cancels the task.
     pub forwarder_abort: Option<tauri::async_runtime::JoinHandle<()>>,
-    /// Sender side of the output mpsc — kept so we can detect if the reader
-    /// thread is still alive. The reader thread holds a clone.
-    pub output_tx: mpsc::Sender<Vec<u8>>,
+    /// Shared sender that the reader thread uses. Can be swapped without
+    /// killing the reader.
+    pub output_tx: Arc<SwappableSender>,
     pub pid: Option<u32>,
 }
 
 impl SessionHandle {
     /// Replace the forwarder task with one that sends to a new Channel.
     /// Returns a snapshot of the scrollback buffer taken atomically with
-    /// the forwarder swap, so no output is lost.
+    /// the forwarder swap, so no output is lost. The reader thread continues
+    /// running — it uses the SwappableSender which is updated in place.
     pub fn subscribe(
         &mut self,
         channel: tauri::ipc::Channel<Vec<u8>>,
@@ -38,21 +67,16 @@ impl SessionHandle {
             handle.abort();
         }
 
-        // Snapshot scrollback while we hold the lock — no new data can
-        // be appended between snapshot and forwarder start because the
-        // reader thread uses blocking_send on the mpsc, and we drain
-        // the mpsc receiver in the new forwarder.
+        // Snapshot scrollback under its lock.
         let snapshot = {
-            let sb = self.scrollback.lock().unwrap();
+            let sb = self.scrollback.lock().unwrap_or_else(|e| e.into_inner());
             sb.snapshot()
         };
 
-        // Create a new mpsc channel; swap the sender so the reader thread
-        // picks it up on the next send (the old sender is dropped, which
-        // will make any in-flight blocking_send on the old channel fail —
-        // but the reader thread checks for send errors and uses the new tx).
+        // Create a new mpsc channel and swap the sender atomically.
+        // The reader thread will pick up the new sender on its next send.
         let (new_tx, new_rx) = mpsc::channel::<Vec<u8>>(256);
-        self.output_tx = new_tx;
+        self.output_tx.swap(new_tx);
 
         // Start a new forwarder task.
         let handle = spawn_forwarder(new_rx, channel);
@@ -124,9 +148,10 @@ pub fn spawn_session(
 
     // mpsc channel for reader thread → forwarder task.
     let (tx, rx) = mpsc::channel::<Vec<u8>>(256);
+    let swappable_tx = Arc::new(SwappableSender::new(tx));
 
     // Start the reader thread (blocking OS thread).
-    let reader_tx = tx.clone();
+    let reader_tx = swappable_tx.clone();
     let reader_scrollback = scrollback.clone();
     std::thread::Builder::new()
         .name(format!("pty-reader-{}", &session_id.to_string()[..8]))
@@ -138,8 +163,7 @@ pub fn spawn_session(
     // Start the forwarder task (async, on the Tauri/tokio runtime).
     let forwarder_handle = spawn_forwarder(rx, channel);
 
-    let killer = child
-        .clone_killer();
+    let killer = child.clone_killer();
 
     let handle = SessionHandle {
         killer,
@@ -147,7 +171,7 @@ pub fn spawn_session(
         scrollback,
         master,
         forwarder_abort: Some(forwarder_handle),
-        output_tx: tx,
+        output_tx: swappable_tx,
         pid,
     };
 
@@ -159,7 +183,7 @@ pub fn spawn_session(
 /// Also appends each chunk to the scrollback buffer.
 fn reader_loop(
     mut reader: Box<dyn Read + Send>,
-    tx: mpsc::Sender<Vec<u8>>,
+    tx: Arc<SwappableSender>,
     scrollback: Arc<Mutex<ScrollbackBuffer>>,
 ) {
     let mut read_buf = [0u8; 8192];
@@ -207,21 +231,21 @@ fn reader_loop(
 
 /// Flush the accumulated batch to both the scrollback buffer and the mpsc channel.
 fn flush_batch(
-    tx: &mpsc::Sender<Vec<u8>>,
+    tx: &Arc<SwappableSender>,
     scrollback: &Arc<Mutex<ScrollbackBuffer>>,
     batch: &mut Vec<u8>,
 ) -> Result<(), ()> {
     let data = std::mem::take(batch);
 
-    // Append to scrollback.
+    // Append to scrollback (recover from poison rather than crashing).
     {
-        let mut sb = scrollback.lock().unwrap();
+        let mut sb = scrollback.lock().unwrap_or_else(|e| e.into_inner());
         sb.append(&data);
     }
 
-    // Send to the async forwarder. blocking_send will block if the channel
-    // is full, which provides backpressure.
-    tx.blocking_send(data).map_err(|_| ())
+    // Send to the async forwarder via the swappable sender. If the receiver
+    // was swapped, this will use the new channel automatically.
+    tx.blocking_send(data)
 }
 
 /// Spawn an async task that receives batches from the mpsc channel and

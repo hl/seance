@@ -3,6 +3,7 @@ use crate::pty_engine::{self, validate_task_slug};
 use crate::state::AppState;
 use std::sync::Arc;
 use tauri::ipc::Channel;
+use tauri::Emitter;
 use uuid::Uuid;
 
 /// Helper: current timestamp as epoch seconds string (same as projects.rs).
@@ -89,7 +90,9 @@ pub async fn create_session(
 
     // Start exit watcher thread.
     let state_clone = state.inner().clone();
-    spawn_exit_watcher(session_id, child, state_clone);
+    let app_handle = state.app_handle.read().await.clone()
+        .expect("AppHandle not available");
+    spawn_exit_watcher(session_id, child, state_clone, app_handle);
 
     Ok(session)
 }
@@ -250,19 +253,8 @@ pub async fn restart_session(
         settings.hook_port
     };
 
-    // Clean up old handle if present (abort forwarder, etc.).
-    {
-        let mut handles = state.session_handles.write().await;
-        if let Some(mut old_handle) = handles.remove(&session_id) {
-            if let Some(fh) = old_handle.forwarder_abort.take() {
-                fh.abort();
-            }
-            // Best-effort kill in case the process is somehow still running.
-            let _ = old_handle.killer.kill();
-        }
-    }
-
-    // Spawn a new PTY.
+    // Spawn a new PTY first, before removing old handle. This way if
+    // spawn fails, the old handle remains in the map and can be cleaned up.
     let (handle, child) = pty_engine::spawn_session(
         session_id,
         &command_line,
@@ -270,6 +262,17 @@ pub async fn restart_session(
         hook_port,
         on_output,
     )?;
+
+    // Clean up old handle now that the new spawn succeeded.
+    {
+        let mut handles = state.session_handles.write().await;
+        if let Some(mut old_handle) = handles.remove(&session_id) {
+            if let Some(fh) = old_handle.forwarder_abort.take() {
+                fh.abort();
+            }
+            let _ = old_handle.killer.kill();
+        }
+    }
 
     let pid = handle.pid;
     let now = timestamp_now();
@@ -297,17 +300,20 @@ pub async fn restart_session(
 
     // Start exit watcher.
     let state_clone = state.inner().clone();
-    spawn_exit_watcher(session_id, child, state_clone);
+    let app_handle = state.app_handle.read().await.clone()
+        .expect("AppHandle not available");
+    spawn_exit_watcher(session_id, child, state_clone, app_handle);
 
     Ok(session)
 }
 
 /// Spawn a thread that waits for the child process to exit, then updates
-/// the session status.
+/// the session status and emits a Tauri event to the frontend.
 fn spawn_exit_watcher(
     session_id: Uuid,
     mut child: Box<dyn portable_pty::Child + Send + Sync>,
     state: Arc<AppState>,
+    app_handle: tauri::AppHandle,
 ) {
     std::thread::Builder::new()
         .name(format!("exit-watcher-{}", &session_id.to_string()[..8]))
@@ -315,24 +321,37 @@ fn spawn_exit_watcher(
             // Block until the child exits.
             let _exit_status = child.wait();
 
-            // Update session status to Exited.
+            // Update session status to Exited and emit event.
             let rt = tokio::runtime::Handle::try_current();
             match rt {
                 Ok(handle) => {
                     handle.block_on(async {
-                        {
+                        let project_id = {
                             let mut sessions = state.sessions.write().await;
                             if let Some(session) = sessions.get_mut(&session_id) {
                                 session.status = SessionStatus::Exited;
+                                Some(session.project_id)
+                            } else {
+                                None
                             }
-                        }
+                        };
                         let _ = state.persist().await;
+
+                        // Emit session-exited event to the frontend.
+                        if let Some(pid) = project_id {
+                            let event_name = format!("session-exited-{}", session_id);
+                            let payload = serde_json::json!({ "sessionId": session_id.to_string() });
+                            let window_label = format!("project-{}", pid);
+                            let _ = app_handle.emit_to(
+                                tauri::EventTarget::labeled(window_label),
+                                &event_name,
+                                payload.clone(),
+                            );
+                            let _ = app_handle.emit(&event_name, payload);
+                        }
                     });
                 }
                 Err(_) => {
-                    // No tokio runtime available — this shouldn't happen in
-                    // normal operation, but handle gracefully. We can't update
-                    // the async RwLock without a runtime.
                     eprintln!(
                         "exit-watcher: no tokio runtime for session {}",
                         session_id

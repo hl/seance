@@ -1,6 +1,7 @@
-import { type FC } from "react";
+import { type FC, useState } from "react";
 import TerminalView from "./Terminal";
 import SessionPanel from "./SessionPanel";
+import ProjectSettings from "./ProjectSettings";
 
 interface SessionViewProps {
   projectId: string;
@@ -13,6 +14,8 @@ const SessionView: FC<SessionViewProps> = ({
   projectName,
   onBack,
 }) => {
+  const [showSettings, setShowSettings] = useState(false);
+
   return (
     <div className="flex h-screen flex-col bg-neutral-950">
       {/* Header bar */}
@@ -30,12 +33,22 @@ const SessionView: FC<SessionViewProps> = ({
         </h1>
         <button
           type="button"
+          onClick={() => setShowSettings(true)}
           className="rounded px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-neutral-300"
           title="Project settings"
         >
           ⚙
         </button>
       </header>
+
+      {showSettings && (
+        <ProjectSettings
+          projectId={projectId}
+          projectName={projectName}
+          projectPath=""
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       {/* Main content: Terminal + Session Panel */}
       <div className="flex min-h-0 flex-1">

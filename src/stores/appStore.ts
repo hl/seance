@@ -78,6 +78,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
       });
     } catch (err) {
       console.error("Failed to open project window:", err);
+      // Fall back to opening in current window if new window fails
+      set({
+        currentView: "session-view",
+        activeProjectId: id,
+        activeProjectName: name,
+      });
     }
   },
 }));
