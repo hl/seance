@@ -1,5 +1,6 @@
 use crate::models::{AppSettings, PersistedState, Project, Session, SessionStatus};
 use crate::persistence::Persistence;
+use crate::pty_engine::SessionHandle;
 use std::collections::HashMap;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -8,6 +9,7 @@ pub struct AppState {
     pub projects: RwLock<HashMap<Uuid, Project>>,
     pub sessions: RwLock<HashMap<Uuid, Session>>,
     pub settings: RwLock<AppSettings>,
+    pub session_handles: RwLock<HashMap<Uuid, SessionHandle>>,
     pub persistence: Persistence,
 }
 
@@ -32,6 +34,7 @@ impl AppState {
             projects: RwLock::new(projects),
             sessions: RwLock::new(sessions),
             settings: RwLock::new(persisted.settings),
+            session_handles: RwLock::new(HashMap::new()),
             persistence,
         }
     }

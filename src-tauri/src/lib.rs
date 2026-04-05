@@ -2,6 +2,8 @@ mod commands;
 pub mod identity;
 mod models;
 mod persistence;
+mod pty_engine;
+mod scrollback;
 mod state;
 
 use persistence::Persistence;
@@ -30,6 +32,13 @@ pub fn run() {
             commands::projects::update_project_settings,
             commands::settings::get_app_settings,
             commands::settings::update_app_settings,
+            commands::sessions::create_session,
+            commands::sessions::kill_session,
+            commands::sessions::send_input,
+            commands::sessions::resize_pty,
+            commands::sessions::get_scrollback,
+            commands::sessions::subscribe_output,
+            commands::sessions::restart_session,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
