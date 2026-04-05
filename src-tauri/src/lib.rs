@@ -1,4 +1,5 @@
 mod commands;
+mod hook_server;
 pub mod identity;
 mod models;
 mod persistence;
@@ -22,6 +23,20 @@ pub fn run() {
                 .expect("failed to resolve app data dir");
             let persistence = Persistence::new(&app_data_dir);
             let state = Arc::new(AppState::new(persistence));
+
+            // Read hook port synchronously before spawning the server.
+            // The setup closure is not async, so we use block_on for
+            // the single RwLock read.
+            let hook_port = tauri::async_runtime::block_on(async {
+                state.settings.read().await.hook_port
+            });
+
+            let state_clone = state.clone();
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(
+                hook_server::start_hook_server(state_clone, app_handle, hook_port),
+            );
+
             app.manage(state);
             Ok(())
         })
