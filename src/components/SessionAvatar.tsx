@@ -83,7 +83,7 @@ function polygonPoints(sides: number, cx: number, cy: number, r: number): string
   return points.join(" ");
 }
 
-function renderShape(shape: ShapeType, color: string): JSX.Element {
+function renderShape(shape: ShapeType, color: string): React.JSX.Element {
   const cx = 50;
   const cy = 50;
   const r = 38;
