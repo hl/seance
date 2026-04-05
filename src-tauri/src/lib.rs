@@ -1,3 +1,4 @@
+mod cleanup;
 mod commands;
 mod hook_server;
 pub mod identity;
@@ -11,10 +12,11 @@ use persistence::Persistence;
 use state::AppState;
 use std::sync::Arc;
 use tauri::Manager;
+use tauri::RunEvent;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             let app_data_dir = app
@@ -23,6 +25,9 @@ pub fn run() {
                 .expect("failed to resolve app data dir");
             let persistence = Persistence::new(&app_data_dir);
             let state = Arc::new(AppState::new(persistence));
+
+            // Clean up orphaned processes from a previous crash/unclean exit.
+            cleanup::cleanup_orphaned_processes(&state);
 
             // Read hook port synchronously before spawning the server.
             // The setup closure is not async, so we use block_on for
@@ -36,6 +41,25 @@ pub fn run() {
             tauri::async_runtime::spawn(
                 hook_server::start_hook_server(state_clone, app_handle, hook_port),
             );
+
+            // Set up signal handler for SIGTERM/SIGINT to kill tracked PIDs.
+            let signal_state = state.clone();
+            std::thread::Builder::new()
+                .name("signal-handler".to_string())
+                .spawn(move || {
+                    use signal_hook::consts::{SIGINT, SIGTERM};
+                    use signal_hook::iterator::Signals;
+
+                    let mut signals =
+                        Signals::new([SIGTERM, SIGINT]).expect("failed to register signals");
+
+                    // Block until we receive a signal.
+                    for _sig in signals.forever() {
+                        cleanup::kill_all_sessions(&signal_state);
+                        std::process::exit(0);
+                    }
+                })
+                .expect("failed to spawn signal handler thread");
 
             app.manage(state);
             Ok(())
@@ -54,7 +78,51 @@ pub fn run() {
             commands::sessions::get_scrollback,
             commands::sessions::subscribe_output,
             commands::sessions::restart_session,
+            commands::windows::open_project_window,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| match event {
+        RunEvent::ExitRequested { api, code, .. } => {
+            // code.is_none() means all windows were closed (not Cmd+Q).
+            // Keep the app alive so the dock icon stays.
+            if code.is_none() {
+                api.prevent_exit();
+            }
+        }
+
+        RunEvent::Reopen {
+            has_visible_windows,
+            ..
+        } => {
+            // Dock icon clicked with no visible windows — reopen the picker.
+            if !has_visible_windows {
+                // Create a new picker window. If one already exists with label
+                // "main", focus it instead.
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.set_focus();
+                } else {
+                    let _ = tauri::WebviewWindowBuilder::new(
+                        app_handle,
+                        "main",
+                        tauri::WebviewUrl::App("index.html".into()),
+                    )
+                    .title("Séance")
+                    .inner_size(1200.0, 800.0)
+                    .center()
+                    .resizable(true)
+                    .build();
+                }
+            }
+        }
+
+        RunEvent::Exit => {
+            // App is shutting down — kill all PTY sessions.
+            let state = app_handle.state::<Arc<AppState>>();
+            cleanup::kill_all_sessions(&state);
+        }
+
+        _ => {}
+    });
 }
