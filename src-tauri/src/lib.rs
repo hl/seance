@@ -1,4 +1,5 @@
 mod commands;
+pub mod identity;
 mod models;
 mod persistence;
 mod state;
