@@ -13,6 +13,7 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
   const switchSession = useSessionStore((s) => s.switchSession);
   const killSession = useSessionStore((s) => s.killSession);
   const restartSession = useSessionStore((s) => s.restartSession);
+  const deleteSession = useSessionStore((s) => s.deleteSession);
 
   const handleClick = useCallback(() => {
     switchSession(session.id);
@@ -34,8 +35,17 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
     [restartSession, session.id],
   );
 
+  const handleDelete = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      deleteSession(session.id);
+    },
+    [deleteSession, session.id],
+  );
+
   const isAlive = session.status !== "exited" && session.status !== "done";
   const canRestart = session.status === "exited";
+  const canDelete = !isAlive;
 
   return (
     <button
@@ -66,7 +76,7 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
               }
             }}
             className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-neutral-700 hover:text-neutral-300 group-hover:inline-block"
-            title="Kill session"
+            title="Kill agent"
           >
             ✕
           </span>
@@ -83,9 +93,26 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
               }
             }}
             className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-neutral-700 hover:text-neutral-300 group-hover:inline-block"
-            title="Restart session"
+            title="Restart agent"
           >
             ↻
+          </span>
+        )}
+        {canDelete && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={handleDelete}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+                deleteSession(session.id);
+              }
+            }}
+            className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-red-900/50 hover:text-red-400 group-hover:inline-block"
+            title="Remove agent"
+          >
+            ✕
           </span>
         )}
       </div>

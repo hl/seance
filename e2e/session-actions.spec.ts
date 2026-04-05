@@ -34,13 +34,13 @@ test.describe("Session Actions", () => {
     await card.hover();
 
     // Click the kill button (✕)
-    const killBtn = card.locator('[title="Kill session"]');
+    const killBtn = card.locator('[title="Kill agent"]');
     await expect(killBtn).toBeVisible();
     await killBtn.click();
 
     // Status should change — the card should now show the restart button on hover
     await card.hover();
-    const restartBtn = card.locator('[title="Restart session"]');
+    const restartBtn = card.locator('[title="Restart agent"]');
     await expect(restartBtn).toBeVisible({ timeout: 5000 });
 
     // Kill button should be gone
@@ -54,17 +54,17 @@ test.describe("Session Actions", () => {
     // Kill first
     const card = page.locator("button").filter({ hasText: "to-restart" });
     await card.hover();
-    await card.locator('[title="Kill session"]').click();
+    await card.locator('[title="Kill agent"]').click();
 
     // Now restart
     await card.hover();
-    const restartBtn = card.locator('[title="Restart session"]');
+    const restartBtn = card.locator('[title="Restart agent"]');
     await expect(restartBtn).toBeVisible({ timeout: 5000 });
     await restartBtn.click();
 
     // Should be back to running — kill button visible, restart hidden
     await card.hover();
-    await expect(card.locator('[title="Kill session"]')).toBeVisible({
+    await expect(card.locator('[title="Kill agent"]')).toBeVisible({
       timeout: 5000,
     });
   });

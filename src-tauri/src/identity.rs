@@ -124,7 +124,11 @@ pub fn schedule_background_name(
                 }
 
                 let event_name = format!("session-name-updated-{}", session_id);
-                let _ = handle_clone.emit(&event_name, name);
+                let payload = serde_json::json!({
+                    "sessionId": session_id.to_string(),
+                    "name": name
+                });
+                let _ = handle_clone.emit(&event_name, payload);
             }
             Err(_) => {
                 // First attempt failed — schedule retries with backoff
@@ -155,7 +159,11 @@ fn schedule_retry(session_id: Uuid, state: Arc<AppState>, app_handle: tauri::App
                 }
 
                 let event_name = format!("session-name-updated-{}", session_id);
-                let _ = app_handle.emit(&event_name, name);
+                let payload = serde_json::json!({
+                    "sessionId": session_id.to_string(),
+                    "name": name
+                });
+                let _ = app_handle.emit(&event_name, payload);
                 return; // Success — stop retrying
             }
         }

@@ -124,6 +124,29 @@ pub async fn create_session(
     Ok(session)
 }
 
+/// Delete a session from the project. Kills it first if still running.
+#[tauri::command]
+pub async fn delete_session(
+    state: tauri::State<'_, Arc<AppState>>,
+    session_id: Uuid,
+) -> Result<(), String> {
+    // Kill if still alive
+    {
+        let mut handles = state.session_handles.write().await;
+        if let Some(mut handle) = handles.remove(&session_id) {
+            let _ = handle.killer.kill();
+        }
+    }
+
+    // Remove from session metadata
+    {
+        let mut sessions = state.sessions.write().await;
+        sessions.remove(&session_id);
+    }
+    state.persist().await?;
+    Ok(())
+}
+
 /// Kill an active session by sending a signal to the PTY child.
 #[tauri::command]
 pub async fn kill_session(

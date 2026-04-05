@@ -200,6 +200,11 @@ export class MockBackend {
                   return Promise.resolve(null);
                 }
 
+                case "delete_session": {
+                  sessions.delete(args?.sessionId);
+                  return Promise.resolve(null);
+                }
+
                 case "restart_session": {
                   const s = sessions.get(args?.sessionId);
                   if (s) {

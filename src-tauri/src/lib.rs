@@ -73,6 +73,7 @@ pub fn run() {
             commands::settings::update_app_settings,
             commands::sessions::list_sessions,
             commands::sessions::create_session,
+            commands::sessions::delete_session,
             commands::sessions::kill_session,
             commands::sessions::send_input,
             commands::sessions::resize_pty,

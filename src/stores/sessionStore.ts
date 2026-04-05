@@ -59,6 +59,7 @@ interface SessionState {
     message?: string,
   ) => void;
   updateName: (sessionId: string, name: string) => void;
+  deleteSession: (sessionId: string) => Promise<void>;
   setActiveProject: (projectId: string | null) => void;
   loadSessions: (projectId: string) => Promise<void>;
   switchToIndex: (index: number) => void;
@@ -157,6 +158,21 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
         next.set(sessionId, { ...session, generatedName: name });
       }
       return { sessions: next };
+    });
+  },
+
+  deleteSession: async (sessionId: string) => {
+    try {
+      await invoke("delete_session", { sessionId });
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+    }
+    set((state) => {
+      const next = new Map(state.sessions);
+      next.delete(sessionId);
+      const newActive =
+        state.activeSessionId === sessionId ? null : state.activeSessionId;
+      return { sessions: next, activeSessionId: newActive };
     });
   },
 
