@@ -75,6 +75,7 @@ pub fn run() {
             commands::sessions::create_session,
             commands::sessions::delete_session,
             commands::sessions::kill_session,
+            commands::sessions::rename_session,
             commands::sessions::send_input,
             commands::sessions::resize_pty,
             commands::sessions::get_scrollback,

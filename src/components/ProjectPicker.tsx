@@ -14,13 +14,15 @@ function projectNameFromPath(path: string): string {
 }
 
 const ProjectPicker: FC = () => {
-  const navigateToProject = useAppStore((s) => s.navigateToProject);
+  const openProjectInNewWindow = useAppStore((s) => s.openProjectInNewWindow);
   const navigateToSettings = useAppStore((s) => s.navigateToSettings);
   const { projects, loading, refresh } = useProjects();
 
   const [settingsProject, setSettingsProject] = useState<ProjectData | null>(
     null,
   );
+  // Track whether the settings modal was opened for a newly added project
+  const [isNewProject, setIsNewProject] = useState(false);
 
   const handleAddProject = useCallback(async () => {
     const selected = await open({ directory: true, multiple: false });
@@ -32,6 +34,7 @@ const ProjectPicker: FC = () => {
       });
       await refresh();
       // Open settings for the newly added project
+      setIsNewProject(true);
       setSettingsProject(project);
     } catch (err) {
       console.error("Failed to add project:", err);
@@ -61,9 +64,9 @@ const ProjectPicker: FC = () => {
   const handleCardClick = useCallback(
     (project: ProjectData) => {
       const name = project.name || projectNameFromPath(project.path);
-      navigateToProject(project.id, name, project.path);
+      void openProjectInNewWindow(project.id, name);
     },
-    [navigateToProject],
+    [openProjectInNewWindow],
   );
 
   const handleOpenSettings = useCallback((project: ProjectData) => {
@@ -71,8 +74,14 @@ const ProjectPicker: FC = () => {
   }, []);
 
   const handleCloseSettings = useCallback(() => {
+    if (isNewProject && settingsProject) {
+      const name =
+        settingsProject.name || projectNameFromPath(settingsProject.path);
+      void openProjectInNewWindow(settingsProject.id, name);
+    }
     setSettingsProject(null);
-  }, []);
+    setIsNewProject(false);
+  }, [isNewProject, settingsProject, openProjectInNewWindow]);
 
   return (
     <div className="flex h-screen flex-col bg-bg">

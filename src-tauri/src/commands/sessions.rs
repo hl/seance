@@ -54,22 +54,9 @@ pub async fn create_session(
         return Err("Project has no command template configured".to_string());
     }
 
-    // Generate session identity — use placeholder immediately, generate
-    // the real name in the background so session creation is instant.
+    // Generate session identity — deterministic name from UUID.
     let session_id = Uuid::new_v4();
-    let generated_name = crate::identity::placeholder_name(session_id);
-
-    // Schedule background name generation (will update + emit event when done)
-    {
-        let app_handle_opt = state.app_handle.read().await;
-        if let Some(ref app_handle) = *app_handle_opt {
-            crate::identity::schedule_background_name(
-                session_id,
-                state.inner().clone(),
-                app_handle.clone(),
-            );
-        }
-    }
+    let generated_name = crate::identity::default_name(session_id);
 
     // Resolve the command template.
     let command_line =
@@ -100,6 +87,8 @@ pub async fn create_session(
         created_at: now.clone(),
         last_started_at: Some(now),
         last_known_pid: pid,
+        exit_code: None,
+        exited_at: None,
     };
 
     // Store the session handle.
@@ -172,6 +161,33 @@ pub async fn kill_session(
         if let Some(session) = sessions.get_mut(&session_id) {
             session.status = SessionStatus::Exited;
         }
+    }
+    state.persist().await?;
+
+    Ok(())
+}
+
+/// Rename a session by updating its generated_name.
+#[tauri::command]
+pub async fn rename_session(
+    state: tauri::State<'_, Arc<AppState>>,
+    session_id: Uuid,
+    name: String,
+) -> Result<(), String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("Session name must not be empty".to_string());
+    }
+    if name.len() > 64 {
+        return Err("Session name must be 64 characters or fewer".to_string());
+    }
+
+    {
+        let mut sessions = state.sessions.write().await;
+        let session = sessions
+            .get_mut(&session_id)
+            .ok_or_else(|| format!("Session {} not found", session_id))?;
+        session.generated_name = name;
     }
     state.persist().await?;
 
@@ -367,7 +383,15 @@ fn spawn_exit_watcher(
         .name(format!("exit-watcher-{}", &session_id.to_string()[..8]))
         .spawn(move || {
             // Block until the child exits.
-            let _exit_status = child.wait();
+            let exit_result = child.wait();
+
+            // Extract exit code: Ok(status) -> status.exit_code() as i32,
+            // Err(_) -> None.
+            let exit_code = match &exit_result {
+                Ok(status) => Some(status.exit_code() as i32),
+                Err(_) => None,
+            };
+            let exited_at = timestamp_now();
 
             // Update session status to Exited and emit event.
             let rt = tokio::runtime::Handle::try_current();
@@ -378,6 +402,8 @@ fn spawn_exit_watcher(
                             let mut sessions = state.sessions.write().await;
                             if let Some(session) = sessions.get_mut(&session_id) {
                                 session.status = SessionStatus::Exited;
+                                session.exit_code = exit_code;
+                                session.exited_at = Some(exited_at.clone());
                                 Some(session.project_id)
                             } else {
                                 None
@@ -388,7 +414,13 @@ fn spawn_exit_watcher(
                         // Emit session-exited event to the frontend.
                         if let Some(pid) = project_id {
                             let event_name = format!("session-exited-{}", session_id);
-                            let payload = serde_json::json!({ "sessionId": session_id.to_string() });
+                            let mut payload = serde_json::json!({
+                                "sessionId": session_id.to_string(),
+                                "exitedAt": exited_at,
+                            });
+                            if let Some(code) = exit_code {
+                                payload["exitCode"] = serde_json::json!(code);
+                            }
                             let window_label = format!("project-{}", pid);
                             let _ = app_handle.emit_to(
                                 tauri::EventTarget::labeled(window_label),

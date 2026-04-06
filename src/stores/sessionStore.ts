@@ -17,6 +17,9 @@ export interface SessionData {
   status: SessionStatus;
   lastMessage: string;
   createdAt: number;
+  lastStartedAt: number | null;
+  exitedAt: number | null;
+  exitCode: number | null;
 }
 
 // Backend response shape from create_session / restart_session
@@ -30,6 +33,8 @@ interface BackendSession {
   created_at: string;
   last_started_at: string | null;
   last_known_pid: number | null;
+  exited_at: string | null;
+  exit_code: number | null;
 }
 
 function backendToFrontend(s: BackendSession): SessionData {
@@ -41,6 +46,11 @@ function backendToFrontend(s: BackendSession): SessionData {
     status: s.status,
     lastMessage: s.last_message ?? "",
     createdAt: parseInt(s.created_at, 10) * 1000 || Date.now(),
+    lastStartedAt: s.last_started_at
+      ? parseInt(s.last_started_at, 10) * 1000
+      : null,
+    exitedAt: s.exited_at ? parseInt(s.exited_at, 10) * 1000 : null,
+    exitCode: s.exit_code ?? null,
   };
 }
 
@@ -57,8 +67,11 @@ interface SessionState {
     sessionId: string,
     status: SessionStatus,
     message?: string,
+    exitCode?: number,
+    exitedAt?: number,
   ) => void;
   updateName: (sessionId: string, name: string) => void;
+  renameSession: (sessionId: string, name: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   setActiveProject: (projectId: string | null) => void;
   loadSessions: (projectId: string) => Promise<void>;
@@ -135,6 +148,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     sessionId: string,
     status: SessionStatus,
     message?: string,
+    exitCode?: number,
+    exitedAt?: number,
   ) => {
     set((state) => {
       const next = new Map(state.sessions);
@@ -144,6 +159,8 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
           ...session,
           status,
           lastMessage: message ?? session.lastMessage,
+          exitCode: exitCode !== undefined ? exitCode : session.exitCode,
+          exitedAt: exitedAt !== undefined ? exitedAt : session.exitedAt,
         });
       }
       return { sessions: next };
@@ -159,6 +176,22 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
       }
       return { sessions: next };
     });
+  },
+
+  renameSession: async (sessionId: string, name: string) => {
+    try {
+      await invoke("rename_session", { sessionId, name });
+      set((state) => {
+        const next = new Map(state.sessions);
+        const session = next.get(sessionId);
+        if (session) {
+          next.set(sessionId, { ...session, generatedName: name });
+        }
+        return { sessions: next };
+      });
+    } catch (err) {
+      console.error("Failed to rename session:", err);
+    }
   },
 
   deleteSession: async (sessionId: string) => {

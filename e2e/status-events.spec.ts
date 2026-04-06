@@ -2,10 +2,13 @@ import { test, expect, type Page } from "@playwright/test";
 import { MockBackend } from "./helpers/mock-backend";
 import type { SessionStatus } from "./types/backend";
 
-async function openProjectAndCreateSession(page: Page, mock: MockBackend) {
-  await page.goto("/");
-  await page.getByRole("heading", { name: "my-app" }).click();
-  await expect(page.locator("header")).toContainText("my-app");
+let projectId: string;
+
+async function openProjectAndCreateSession(page: Page, mock: MockBackend, id: string) {
+  await page.goto(
+    `/?projectId=${id}&projectName=my-app&projectPath=${encodeURIComponent("/test/my-app")}`,
+  );
+  await expect(page.getByText("my-app")).toBeVisible();
 
   // Create a session
   await page.getByText("+ New Session").click();
@@ -21,14 +24,15 @@ test.describe("Status Events", () => {
 
   test.beforeEach(async ({ page }) => {
     mock = new MockBackend();
-    mock.addProject({ path: "/test/my-app" });
+    const project = mock.addProject({ path: "/test/my-app" });
+    projectId = project.id;
     await mock.install(page);
   });
 
   test("status transitions update session card indicator", async ({
     page,
   }) => {
-    await openProjectAndCreateSession(page, mock);
+    await openProjectAndCreateSession(page, mock, projectId);
 
     // Get the session card
     const card = page.locator("button").filter({ hasText: "status-test" });
@@ -71,27 +75,6 @@ test.describe("Status Events", () => {
       if ((await statusDot.count()) > 0) {
         await expect(statusDot).toHaveAttribute("data-status", status);
       }
-    }
-  });
-
-  test("session name update event changes card name", async ({ page }) => {
-    await openProjectAndCreateSession(page, mock);
-
-    const card = page.locator("button").filter({ hasText: "status-test" });
-
-    // Initially shows placeholder "Agent-xxxx"
-    await expect(card.getByText(/Agent-/)).toBeVisible();
-
-    // Get session ID to emit event
-    const avatar = card.locator('[data-testid="session-avatar"]');
-    const sessionId = await avatar.getAttribute("data-session-id");
-
-    if (sessionId) {
-      await mock.emitSessionNameUpdated(page, sessionId, "Maya");
-      await page.waitForTimeout(500);
-
-      // Name should update from Agent-xxxx to Maya
-      await expect(card.getByText("Maya")).toBeVisible({ timeout: 3000 });
     }
   });
 });

@@ -37,19 +37,21 @@ test.describe("Settings", () => {
 
   test("project settings save command template", async ({ page }) => {
     const mock = new MockBackend();
-    mock.addProject({
+    const project = mock.addProject({
       path: "/test/my-app",
       command_template: "old-command",
     });
     await mock.install(page);
-    await page.goto("/");
 
-    // Navigate to project
-    await page.getByRole("heading", { name: "my-app" }).click();
-    await expect(page.locator("header")).toContainText("my-app");
+    // Navigate directly to project window via URL params
+    await page.goto(
+      `/?projectId=${project.id}&projectName=my-app&projectPath=${encodeURIComponent("/test/my-app")}`,
+    );
+    await expect(page.getByText("my-app")).toBeVisible();
 
-    // Open project settings
-    await page.locator('header [title="Project settings"]').click();
+    // Open project settings from the session panel
+    const panel = page.locator(".border-l");
+    await panel.locator('button[title="Project settings"]').click();
     await expect(
       page.getByText("Command Template", { exact: true }),
     ).toBeVisible();

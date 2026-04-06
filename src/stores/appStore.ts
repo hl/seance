@@ -12,39 +12,19 @@ interface AppState {
   /** The project this window was opened for (set from URL params). */
   windowProjectId: string | null;
 
-  navigateToProject: (id: string, name: string, path?: string) => void;
   navigateToPicker: () => void;
   navigateToSettings: () => void;
-  setActiveProject: (id: string, name: string) => void;
+  setActiveProject: (id: string, name: string, path?: string) => void;
   setWindowProject: (id: string | null) => void;
   openProjectInNewWindow: (id: string, name: string) => Promise<void>;
 }
 
-export const useAppStore = create<AppState>()((set, get) => ({
+export const useAppStore = create<AppState>()((set) => ({
   currentView: "picker",
   activeProjectId: null,
   activeProjectName: null,
   activeProjectPath: null,
   windowProjectId: null,
-
-  navigateToProject: (id: string, name: string, path?: string) => {
-    const state = get();
-    // Only open a new window if this window was opened specifically for
-    // a DIFFERENT project via URL params (multi-window scenario).
-    // The windowProjectId is set only when a window is opened via
-    // open_project_window with query params.
-    if (state.windowProjectId && state.windowProjectId !== id) {
-      void get().openProjectInNewWindow(id, name);
-      return;
-    }
-
-    set({
-      currentView: "session-view",
-      activeProjectId: id,
-      activeProjectName: name,
-      activeProjectPath: path ?? null,
-    });
-  },
 
   navigateToPicker: () => {
     set({
@@ -56,8 +36,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set({ currentView: "settings" });
   },
 
-  setActiveProject: (id: string, name: string) => {
-    set({ activeProjectId: id, activeProjectName: name });
+  setActiveProject: (id: string, name: string, path?: string) => {
+    set({
+      activeProjectId: id,
+      activeProjectName: name,
+      activeProjectPath: path ?? null,
+    });
   },
 
   setWindowProject: (id: string | null) => {
@@ -72,9 +56,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
       });
     } catch (err) {
       console.error("Failed to open project window:", err);
-      // Fall back to opening in current window if new window fails
+      // Fallback: open project in current window if new window fails
       set({
-        currentView: "session-view",
+        currentView: "session-view" as AppView,
         activeProjectId: id,
         activeProjectName: name,
       });
