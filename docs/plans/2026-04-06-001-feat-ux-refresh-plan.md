@@ -1,7 +1,7 @@
 ---
 title: "feat: UX refresh — multi-window, session info density, naming, context menu"
 type: feat
-status: active
+status: completed
 date: 2026-04-06
 origin: docs/brainstorms/2026-04-06-ux-refresh-requirements.md
 deepened: 2026-04-06
