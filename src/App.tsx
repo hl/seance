@@ -11,14 +11,14 @@ function App() {
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const activeProjectName = useAppStore((s) => s.activeProjectName);
   const activeProjectPath = useAppStore((s) => s.activeProjectPath);
-  const navigateToProject = useAppStore((s) => s.navigateToProject);
-  const navigateToPicker = useAppStore((s) => s.navigateToPicker);
+  const setActiveProject = useAppStore((s) => s.setActiveProject);
   const setWindowProject = useAppStore((s) => s.setWindowProject);
 
   const initializedRef = useRef(false);
 
   // On mount, check URL query params for project context.
-  // This is how newly opened project windows know which project to show.
+  // Project windows receive projectId, projectName, and projectPath via URL.
+  // The picker window has no URL params.
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
@@ -26,10 +26,17 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const projectId = params.get("projectId");
     const projectName = params.get("projectName");
+    const projectPath = params.get("projectPath");
 
     if (projectId && projectName) {
       setWindowProject(projectId);
-      navigateToProject(projectId, decodeURIComponent(projectName));
+      setActiveProject(
+        projectId,
+        decodeURIComponent(projectName),
+        projectPath ? decodeURIComponent(projectPath) : undefined,
+      );
+      // Set view directly to session-view for project windows
+      useAppStore.setState({ currentView: "session-view" });
     }
 
     // Initialize theme store from persisted backend settings
@@ -41,31 +48,21 @@ function App() {
       // Use defaults if backend not available
       useThemeStore.getState().initialize({});
     });
-  }, [navigateToProject, setWindowProject]);
+  }, [setActiveProject, setWindowProject]);
 
-  // Back button handler: if this window was opened for a specific project,
-  // navigating back shows the picker in the same window. From the picker,
-  // clicking the same project goes back to its session view, clicking a
-  // different project opens a new window.
-  const handleBack = () => {
-    navigateToPicker();
-  };
+  // Project windows: always show SessionView, no back navigation
+  if (activeProjectId && currentView === "session-view") {
+    return (
+      <SessionView
+        projectId={activeProjectId}
+        projectName={activeProjectName ?? ""}
+        projectPath={activeProjectPath ?? ""}
+      />
+    );
+  }
 
-  // When in the picker and this window has a "home" project, clicking
-  // that same project should go back to the session view (not open a new
-  // window). This is handled by navigateToProject in the store which
-  // checks if activeProjectId matches.
-
+  // Picker windows: show picker or settings
   switch (currentView) {
-    case "session-view":
-      return (
-        <SessionView
-          projectId={activeProjectId ?? ""}
-          projectName={activeProjectName ?? ""}
-          projectPath={activeProjectPath ?? ""}
-          onBack={handleBack}
-        />
-      );
     case "settings":
       return <Settings />;
     case "picker":

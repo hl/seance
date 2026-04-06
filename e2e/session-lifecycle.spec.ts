@@ -7,10 +7,14 @@ import { MockBackend } from "./helpers/mock-backend";
 
 const PROJECT_PATH = "/test/my-app";
 
-async function openProject(page: Page) {
-  await page.goto("/");
-  await page.getByRole("heading", { name: "my-app" }).click();
-  await expect(page.locator("header")).toContainText("my-app");
+let projectId: string;
+
+async function openProjectWindow(page: Page, id: string) {
+  await page.goto(
+    `/?projectId=${id}&projectName=my-app&projectPath=${encodeURIComponent(PROJECT_PATH)}`,
+  );
+  // Session panel should show the project name
+  await expect(page.getByText("my-app")).toBeVisible();
 }
 
 async function createSession(page: Page, task: string) {
@@ -32,7 +36,8 @@ async function createSession(page: Page, task: string) {
 test.describe("Session Lifecycle", () => {
   test.beforeEach(async ({ page }) => {
     const mock = new MockBackend();
-    mock.addProject({ path: PROJECT_PATH });
+    const project = mock.addProject({ path: PROJECT_PATH });
+    projectId = project.id;
     await mock.install(page);
   });
 
@@ -41,7 +46,7 @@ test.describe("Session Lifecycle", () => {
   test("creating a session shows it in the session panel", async ({
     page,
   }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId);
     await createSession(page, "fix-auth");
 
     await expect(page.getByText("fix-auth")).toBeVisible();
@@ -51,7 +56,7 @@ test.describe("Session Lifecycle", () => {
   });
 
   test("creating a session activates the terminal area", async ({ page }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId);
     await expect(page.getByText("No sessions yet")).toBeVisible();
 
     await createSession(page, "build-feature");
@@ -62,7 +67,7 @@ test.describe("Session Lifecycle", () => {
   });
 
   test("creating multiple sessions shows all in panel", async ({ page }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId);
 
     await createSession(page, "task-one");
     await createSession(page, "task-two");
@@ -81,7 +86,7 @@ test.describe("Session Lifecycle", () => {
   test("clicking a different session card switches the active session", async ({
     page,
   }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId);
     await createSession(page, "session-a");
     await createSession(page, "session-b");
 
@@ -90,64 +95,7 @@ test.describe("Session Lifecycle", () => {
       .filter({ hasText: "session-a" });
     await sessionACard.click();
 
-    await expect(sessionACard).toHaveClass(/bg-neutral-800/);
-  });
-
-  // ---- Navigation: back to picker and re-entry ----------------------------
-
-  test("navigating back to picker preserves session count", async ({
-    page,
-  }) => {
-    await openProject(page);
-    await createSession(page, "my-task");
-
-    await page.locator('header button[title="Back to projects"]').click();
-    await expect(page.getByRole("heading", { name: "my-app" })).toBeVisible();
-  });
-
-  test("re-entering a project with sessions does not show black screen", async ({
-    page,
-  }) => {
-    await openProject(page);
-    await createSession(page, "persistent-task");
-    await expect(page.getByText("persistent-task")).toBeVisible();
-
-    await page.locator('header button[title="Back to projects"]').click();
-    await expect(page.getByRole("heading", { name: "my-app" })).toBeVisible();
-
-    await page.getByRole("heading", { name: "my-app" }).click();
-    await expect(page.locator("header")).toContainText("my-app");
-
-    await expect(page.getByText("persistent-task")).toBeVisible();
-
-    const panel = page.locator(".border-l");
-    await expect(
-      panel.getByRole("heading", { name: "Sessions" }),
-    ).toBeVisible();
-    await expect(page.getByText("+ New Session")).toBeVisible();
-  });
-
-  test("re-entering a project shows sessions and allows reactivation", async ({
-    page,
-  }) => {
-    await openProject(page);
-    await createSession(page, "terminal-test");
-    await expect(page.getByText("No sessions yet")).not.toBeVisible();
-
-    // Go back and re-enter
-    await page.locator('header button[title="Back to projects"]').click();
-    await page.getByRole("heading", { name: "my-app" }).click();
-
-    // Session should still be in the panel
-    const panel = page.locator(".border-l");
-    await expect(panel.getByText("terminal-test")).toBeVisible();
-
-    // Click the session to reactivate it
-    await page.locator("button").filter({ hasText: "terminal-test" }).click();
-
-    // Terminal should now be visible
-    const terminalArea = page.locator(".xterm");
-    await expect(terminalArea).toBeVisible({ timeout: 5000 });
+    await expect(sessionACard).toHaveClass(/bg-surface-active/);
   });
 
   // ---- Session panel state -----------------------------------------------
@@ -155,23 +103,20 @@ test.describe("Session Lifecycle", () => {
   test("session panel shows correct count after creating sessions", async ({
     page,
   }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId);
     const panel = page.locator(".border-l");
-    const countEl = panel.locator(".border-b span.text-neutral-600");
-
-    await expect(countEl).toHaveText("0");
 
     await createSession(page, "first");
-    await expect(countEl).toHaveText("1");
+    await expect(panel.getByText("1", { exact: true })).toBeVisible();
 
     await createSession(page, "second");
-    await expect(countEl).toHaveText("2");
+    await expect(panel.getByText("2", { exact: true })).toBeVisible();
   });
 
   test("new session input closes after successful creation", async ({
     page,
   }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId);
     await page.getByText("+ New Session").click();
 
     const input = page.locator('input[aria-label="New session task name"]');
@@ -184,20 +129,21 @@ test.describe("Session Lifecycle", () => {
     await expect(page.getByText("+ New Session")).toBeVisible();
   });
 
-  // ---- Header elements ----------------------------------------------------
+  // ---- Session view layout -----------------------------------------------
 
-  test("session view header has back button, project name, and settings", async ({
+  test("session view has project name and settings in panel, no header", async ({
     page,
   }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId);
 
-    const header = page.locator("header");
+    // No <header> element
+    await expect(page.locator("header")).not.toBeVisible();
+
+    // Project name and settings gear are in the session panel
+    const panel = page.locator(".border-l");
+    await expect(panel.getByText("my-app")).toBeVisible();
     await expect(
-      header.locator('button[title="Back to projects"]'),
-    ).toBeVisible();
-    await expect(header).toContainText("my-app");
-    await expect(
-      header.locator('button[title="Project settings"]'),
+      panel.locator('button[title="Project settings"]'),
     ).toBeVisible();
   });
 
@@ -206,7 +152,7 @@ test.describe("Session Lifecycle", () => {
   test("input auto-slugifies text and creates session", async ({
     page,
   }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId);
     await page.getByText("+ New Session").click();
 
     const input = page.locator('input[aria-label="New session task name"]');
@@ -224,13 +170,9 @@ test.describe("Session Lifecycle", () => {
   test("empty project shows no-sessions prompt and new-session button", async ({
     page,
   }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId);
 
     await expect(page.getByText("No sessions yet")).toBeVisible();
-
-    const panel = page.locator(".border-l");
-    const countEl = panel.locator(".border-b span.text-neutral-600");
-    await expect(countEl).toHaveText("0");
     await expect(page.getByText("+ New Session")).toBeVisible();
   });
 });

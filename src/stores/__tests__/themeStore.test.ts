@@ -121,12 +121,15 @@ describe("themeStore", () => {
       expect(document.documentElement.classList.contains("dark")).toBe(false);
     });
 
-    it("does NOT write to localStorage (only save does that)", () => {
+    it("writes to localStorage for cross-window theme sync", () => {
       mockLocalStorage.setItem.mockClear();
 
       useThemeStore.getState().setPreference("dark");
 
-      expect(mockLocalStorage.setItem).not.toHaveBeenCalled();
+      expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+        "seance-theme",
+        "dark",
+      );
     });
   });
 

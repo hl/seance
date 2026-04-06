@@ -3,19 +3,23 @@ import { invoke } from "@tauri-apps/api/core";
 import { Channel } from "@tauri-apps/api/core";
 import { useTerminal } from "../hooks/useTerminal";
 import { useSessionStore } from "../stores/sessionStore";
-import { useSessionEvents } from "../hooks/useSessionEvents";
 import "@xterm/xterm/css/xterm.css";
 
 const TerminalView: FC = () => {
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
+  // Track lastStartedAt so the effect re-runs when a session is restarted
+  // (activeSessionId stays the same, but the PTY is new and needs re-subscription).
+  const activeSessionStartedAt = useSessionStore((s) => {
+    if (!s.activeSessionId) return null;
+    return s.sessions.get(s.activeSessionId)?.lastStartedAt ?? null;
+  });
   const { terminalRef, writeData, reset, fit, fitAndGetDimensions, onData } =
     useTerminal(activeSessionId);
   const channelRef = useRef<Channel<number[]> | null>(null);
   const [subscribeError, setSubscribeError] = useState(false);
 
-  useSessionEvents(activeSessionId);
-
-  // Session switching: reset terminal, subscribe to output, replay scrollback
+  // Session switching: reset terminal, subscribe to output, replay scrollback.
+  // Also re-runs when activeSessionStartedAt changes (session restarted).
   useEffect(() => {
     if (!activeSessionId) return;
 
@@ -64,7 +68,7 @@ const TerminalView: FC = () => {
       cancelled = true;
       channelRef.current = null;
     };
-  }, [activeSessionId, writeData, reset, fit, fitAndGetDimensions]);
+  }, [activeSessionId, activeSessionStartedAt, writeData, reset, fit, fitAndGetDimensions]);
 
   // Forward terminal input to PTY
   useEffect(() => {
@@ -95,7 +99,7 @@ const TerminalView: FC = () => {
       {!activeSessionId && (
         <div className="absolute inset-0 flex items-center justify-center">
           <p className="text-text-muted">
-            No sessions yet. Create one to get started.
+            Select a session or create a new one.
           </p>
         </div>
       )}

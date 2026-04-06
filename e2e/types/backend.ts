@@ -23,6 +23,7 @@ export interface AppSettings {
   hook_port: number;
   terminal_font_size: number;
   terminal_theme: string;
+  app_theme: string;
 }
 
 /** Mirrors: models::Project */
@@ -44,6 +45,8 @@ export interface Session {
   created_at: string;
   last_started_at: string | null;
   last_known_pid: number | null;
+  exit_code: number | null;
+  exited_at: string | null;
 }
 
 // --- Command responses (src-tauri/src/commands/projects.rs) ---
@@ -80,6 +83,8 @@ export interface TauriCommands {
   get_scrollback: { args: { sessionId: string }; response: number[] };
   subscribe_output: { args: { sessionId: string; onOutput: unknown }; response: number[] };
   restart_session: { args: { sessionId: string }; response: Session };
+  delete_session: { args: { sessionId: string }; response: null };
+  rename_session: { args: { sessionId: string; name: string }; response: null };
   get_app_settings: { args: Record<string, never>; response: AppSettings };
   update_app_settings: { args: { settings: AppSettings }; response: null };
   open_project_window: { args: { projectId: string; projectName: string }; response: null };

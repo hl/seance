@@ -1,39 +1,48 @@
 import { test, expect } from "@playwright/test";
 import { MockBackend } from "./helpers/mock-backend";
 
-async function navigateToSessionView(
+/**
+ * Navigate directly to a project window via URL params.
+ */
+async function navigateToProjectWindow(
   page: import("@playwright/test").Page,
+  projectId: string,
   projectName: string,
 ) {
-  await page.goto("/");
-  await page.getByRole("heading", { name: projectName }).click();
-  await expect(page.locator("header")).toContainText(projectName);
+  await page.goto(
+    `/?projectId=${projectId}&projectName=${encodeURIComponent(projectName)}&projectPath=${encodeURIComponent("/test/" + projectName)}`,
+  );
+  await expect(page.getByText(projectName)).toBeVisible();
 }
 
 test.describe("Session View", () => {
+  let projectId: string;
+
   test.beforeEach(async ({ page }) => {
     const mock = new MockBackend();
-    mock.addProject({ path: "/test/my-app" });
+    const project = mock.addProject({ path: "/test/my-app" });
+    projectId = project.id;
     mock.addProject({ path: "/test/another-project" });
     await mock.install(page);
   });
 
-  test("back button returns to Project Picker", async ({ page }) => {
-    await navigateToSessionView(page, "my-app");
-    await page.locator('header button[title="Back to projects"]').click();
+  test("session view has no header bar (multi-window model)", async ({
+    page,
+  }) => {
+    await navigateToProjectWindow(page, projectId, "my-app");
 
-    await expect(
-      page.getByRole("heading", { name: "my-app" }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("heading", { name: "another-project" }),
-    ).toBeVisible();
+    // No <header> element should exist in the session view
+    await expect(page.locator("header")).not.toBeVisible();
+
+    // Project name should appear in the session panel instead
+    const panel = page.locator(".border-l");
+    await expect(panel.getByText("my-app")).toBeVisible();
   });
 
   test("'+ New Session' click reveals input that auto-slugifies", async ({
     page,
   }) => {
-    await navigateToSessionView(page, "my-app");
+    await navigateToProjectWindow(page, projectId, "my-app");
     await page.getByText("+ New Session").click();
 
     const input = page.locator("input[placeholder]").last();
@@ -49,11 +58,14 @@ test.describe("Session View", () => {
     await expect(panel.getByText("my-cool-task")).toBeVisible();
   });
 
-  // Session card creation is covered in session-lifecycle.spec.ts
+  test("settings button in panel opens project settings modal", async ({
+    page,
+  }) => {
+    await navigateToProjectWindow(page, projectId, "my-app");
 
-  test("settings button opens project settings modal", async ({ page }) => {
-    await navigateToSessionView(page, "my-app");
-    await page.locator('header button[title="Project settings"]').click();
+    // Settings gear is in the session panel, not a header
+    const panel = page.locator(".border-l");
+    await panel.locator('button[title="Project settings"]').click();
     await expect(
       page.getByText("Command Template", { exact: true }),
     ).toBeVisible();

@@ -49,13 +49,15 @@ export function makeSession(
     id,
     project_id: projectId,
     task: overrides.task ?? `task-${sessionCounter}`,
-    generated_name: overrides.generated_name ?? `Agent-${id.slice(0, 8)}`,
+    generated_name: overrides.generated_name ?? `Agent-${id.slice(0, 4)}`,
     status: overrides.status ?? "running",
     last_message: overrides.last_message ?? null,
     created_at:
       overrides.created_at ?? String(Math.floor(Date.now() / 1000)),
     last_started_at: overrides.last_started_at ?? null,
     last_known_pid: overrides.last_known_pid ?? null,
+    exit_code: overrides.exit_code ?? null,
+    exited_at: overrides.exited_at ?? null,
   };
 }
 
@@ -68,6 +70,7 @@ export class MockBackend {
     hook_port: 7837,
     terminal_font_size: 14,
     terminal_theme: "system",
+    app_theme: "system",
   };
 
   // --- State seeding ---
@@ -183,12 +186,14 @@ export class MockBackend {
                     id,
                     project_id: args?.projectId ?? "",
                     task: args?.task ?? "unknown",
-                    generated_name: `Agent-${id.slice(0, 8)}`,
+                    generated_name: `Agent-${id.slice(0, 4)}`,
                     status: "running",
                     last_message: null,
                     created_at: String(Math.floor(Date.now() / 1000)),
                     last_started_at: String(Math.floor(Date.now() / 1000)),
                     last_known_pid: 12345,
+                    exit_code: null,
+                    exited_at: null,
                   };
                   sessions.set(id, session);
                   return Promise.resolve(session);
@@ -205,12 +210,23 @@ export class MockBackend {
                   return Promise.resolve(null);
                 }
 
+                case "rename_session": {
+                  const s = sessions.get(args?.sessionId);
+                  if (s) {
+                    s.generated_name = args?.name ?? s.generated_name;
+                    return Promise.resolve(null);
+                  }
+                  return Promise.reject("Session not found");
+                }
+
                 case "restart_session": {
                   const s = sessions.get(args?.sessionId);
                   if (s) {
                     s.status = "running";
                     s.last_message = null;
                     s.last_started_at = String(Math.floor(Date.now() / 1000));
+                    s.exit_code = null;
+                    s.exited_at = null;
                     return Promise.resolve({ ...s });
                   }
                   return Promise.reject("Session not found");
@@ -220,6 +236,11 @@ export class MockBackend {
                 case "resize_pty":
                 case "open_project_window":
                   return Promise.resolve(null);
+
+                // Tauri dialog plugin: confirm/ask use plugin:dialog|message
+                // and compare result to the "Ok" button label
+                case "plugin:dialog|message":
+                  return Promise.resolve("Ok");
 
                 case "subscribe_output":
                   return Promise.resolve([]);
@@ -321,28 +342,24 @@ export class MockBackend {
   /**
    * Emit a session-exited event to the frontend.
    */
-  async emitSessionExited(page: Page, sessionId: string): Promise<void> {
-    await page.evaluate(
-      ([event, payload]) => {
-        (window as any).__MOCK_EMIT_EVENT__?.(event, payload);
-      },
-      [`session-exited-${sessionId}`, { sessionId }] as const,
-    );
-  }
-
-  /**
-   * Emit a session-name-updated event to the frontend.
-   */
-  async emitSessionNameUpdated(
+  async emitSessionExited(
     page: Page,
     sessionId: string,
-    name: string,
+    exitCode: number | null = null,
+    exitedAt: string | null = null,
   ): Promise<void> {
     await page.evaluate(
       ([event, payload]) => {
         (window as any).__MOCK_EMIT_EVENT__?.(event, payload);
       },
-      [`session-name-updated-${sessionId}`, { sessionId, name }] as const,
+      [
+        `session-exited-${sessionId}`,
+        {
+          sessionId,
+          exitCode: exitCode ?? 0,
+          exitedAt: exitedAt ?? String(Math.floor(Date.now() / 1000)),
+        },
+      ] as const,
     );
   }
 }

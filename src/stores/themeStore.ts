@@ -18,6 +18,7 @@ interface ThemeState {
 
 let mediaQuery: MediaQueryList | null = null;
 let mediaListener: ((e: MediaQueryListEvent) => void) | null = null;
+let storageListenerAttached = false;
 
 const VALID_PREFERENCES = ["system", "dark", "light"] as const;
 
@@ -64,7 +65,7 @@ function attachMediaListener(): void {
   mediaQuery.addEventListener("change", mediaListener);
 }
 
-export const useThemeStore = create<ThemeState>()((set, get) => ({
+export const useThemeStore = create<ThemeState>()((set) => ({
   preference: "system",
   resolved: "dark",
   terminalTheme: "system",
@@ -85,6 +86,25 @@ export const useThemeStore = create<ThemeState>()((set, get) => ({
     } else {
       detachMediaListener();
     }
+
+    // Listen for theme changes from other windows via localStorage "storage" event.
+    // The "storage" event only fires in OTHER windows, not the one that wrote the key.
+    if (!storageListenerAttached) {
+      storageListenerAttached = true;
+      window.addEventListener("storage", (e) => {
+        if (e.key === "seance-theme" && e.newValue && isThemePreference(e.newValue)) {
+          const newPref = e.newValue as ThemePreference;
+          const newResolved = resolveTheme(newPref);
+          useThemeStore.setState({ preference: newPref, resolved: newResolved });
+          applyThemeToDOM(newResolved);
+          if (newPref === "system") {
+            attachMediaListener();
+          } else {
+            detachMediaListener();
+          }
+        }
+      });
+    }
   },
 
   setPreference: (pref) => {
@@ -92,7 +112,12 @@ export const useThemeStore = create<ThemeState>()((set, get) => ({
     set({ preference: pref, resolved });
     applyThemeToDOM(resolved);
 
-    // Do NOT mirror to localStorage here — only on save (see Settings.tsx)
+    // Mirror to localStorage so other windows pick it up via "storage" event
+    try {
+      localStorage.setItem("seance-theme", pref);
+    } catch {
+      // localStorage may be unavailable
+    }
 
     if (pref === "system") {
       attachMediaListener();

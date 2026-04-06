@@ -1,10 +1,21 @@
 import { test, expect, type Page } from "@playwright/test";
 import { MockBackend } from "./helpers/mock-backend";
 
-async function openProject(page: Page) {
-  await page.goto("/");
-  await page.getByRole("heading", { name: "my-app" }).click();
-  await expect(page.locator("header")).toContainText("my-app");
+/**
+ * Navigate directly to a project window (simulates being in a dedicated
+ * project window with URL params, since the picker no longer navigates
+ * in-place).
+ */
+async function openProjectWindow(
+  page: Page,
+  projectId: string,
+  projectName: string,
+) {
+  await page.goto(
+    `/?projectId=${projectId}&projectName=${encodeURIComponent(projectName)}&projectPath=${encodeURIComponent("/test/" + projectName)}`,
+  );
+  // Session panel should be visible with the project name
+  await expect(page.getByText(projectName)).toBeVisible();
 }
 
 async function createSession(page: Page, task: string) {
@@ -17,55 +28,64 @@ async function createSession(page: Page, task: string) {
 }
 
 test.describe("Session Actions", () => {
+  let projectId: string;
+
   test.beforeEach(async ({ page }) => {
     const mock = new MockBackend();
-    mock.addProject({ path: "/test/my-app" });
+    const project = mock.addProject({ path: "/test/my-app" });
+    projectId = project.id;
     await mock.install(page);
   });
 
-  test("kill session changes status to exited and shows restart button", async ({
+  test("kill session via context menu changes status to exited", async ({
     page,
   }) => {
-    await openProject(page);
+    await openProjectWindow(page, projectId, "my-app");
     await createSession(page, "to-kill");
 
-    // Hover over the session card to reveal the kill button
+    // Right-click the session card to open context menu
     const card = page.locator("button").filter({ hasText: "to-kill" });
-    await card.hover();
+    await card.click({ button: "right" });
 
-    // Click the kill button (✕)
-    const killBtn = card.locator('[title="Kill session"]');
-    await expect(killBtn).toBeVisible();
-    await killBtn.click();
+    // Click "Kill" in the context menu
+    const killItem = page.getByText("Kill", { exact: true });
+    await expect(killItem).toBeVisible();
+    await killItem.click();
 
-    // Status should change — the card should now show the restart button on hover
-    await card.hover();
-    const restartBtn = card.locator('[title="Restart session"]');
-    await expect(restartBtn).toBeVisible({ timeout: 5000 });
+    // Confirm the kill dialog (mock confirm returns true by default)
+    // After killing, the card should still exist but the context menu
+    // should now show Restart instead of Kill
+    await card.click({ button: "right" });
+    const restartItem = page.getByText("Restart", { exact: true });
+    await expect(restartItem).toBeVisible({ timeout: 5000 });
 
-    // Kill button should be gone
-    await expect(killBtn).not.toBeVisible();
+    // Kill should no longer be in the context menu
+    await expect(
+      page.getByText("Kill", { exact: true }),
+    ).not.toBeVisible();
   });
 
-  test("restart session changes status back to running", async ({ page }) => {
-    await openProject(page);
+  test("restart session via context menu changes status back to running", async ({
+    page,
+  }) => {
+    await openProjectWindow(page, projectId, "my-app");
     await createSession(page, "to-restart");
 
-    // Kill first
+    // Kill first via context menu
     const card = page.locator("button").filter({ hasText: "to-restart" });
-    await card.hover();
-    await card.locator('[title="Kill session"]').click();
+    await card.click({ button: "right" });
+    await page.getByText("Kill", { exact: true }).click();
 
-    // Now restart
-    await card.hover();
-    const restartBtn = card.locator('[title="Restart session"]');
-    await expect(restartBtn).toBeVisible({ timeout: 5000 });
-    await restartBtn.click();
+    // Now restart via context menu
+    await card.click({ button: "right" });
+    const restartItem = page.getByText("Restart", { exact: true });
+    await expect(restartItem).toBeVisible({ timeout: 5000 });
+    await restartItem.click();
 
-    // Should be back to running — kill button visible, restart hidden
-    await card.hover();
-    await expect(card.locator('[title="Kill session"]')).toBeVisible({
-      timeout: 5000,
-    });
+    // Should be back to running — context menu should show Kill again
+    await card.click({ button: "right" });
+    await expect(
+      page.getByText("Kill", { exact: true }),
+    ).toBeVisible({ timeout: 5000 });
   });
 });

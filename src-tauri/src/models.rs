@@ -24,6 +24,10 @@ pub struct Session {
     pub last_started_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_known_pid: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_code: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exited_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

@@ -13,26 +13,23 @@ async function createSession(page: Page, task: string) {
 test.describe("Multi-Project", () => {
   test("sessions are isolated per project", async ({ page }) => {
     const mock = new MockBackend();
-    mock.addProject({ path: "/test/project-alpha" });
-    mock.addProject({ path: "/test/project-beta" });
+    const alpha = mock.addProject({ path: "/test/project-alpha" });
+    const beta = mock.addProject({ path: "/test/project-beta" });
     await mock.install(page);
-    await page.goto("/");
 
-    // Open project alpha and create a session
-    await page.getByRole("heading", { name: "project-alpha" }).click();
-    await expect(page.locator("header")).toContainText("project-alpha");
+    // Open project alpha window and create a session
+    await page.goto(
+      `/?projectId=${alpha.id}&projectName=project-alpha&projectPath=${encodeURIComponent("/test/project-alpha")}`,
+    );
+    await expect(page.getByText("project-alpha")).toBeVisible();
     await createSession(page, "alpha-task");
     await expect(page.getByText("alpha-task")).toBeVisible();
 
-    // Go back to picker
-    await page.locator('header button[title="Back to projects"]').click();
-    await expect(
-      page.getByRole("heading", { name: "project-alpha" }),
-    ).toBeVisible();
-
-    // Open project beta
-    await page.getByRole("heading", { name: "project-beta" }).click();
-    await expect(page.locator("header")).toContainText("project-beta");
+    // Navigate to project beta window (simulates opening a different window)
+    await page.goto(
+      `/?projectId=${beta.id}&projectName=project-beta&projectPath=${encodeURIComponent("/test/project-beta")}`,
+    );
+    await expect(page.getByText("project-beta")).toBeVisible();
 
     // Beta should have no sessions — alpha's session should NOT appear
     await expect(page.getByText("No sessions yet")).toBeVisible();
@@ -43,9 +40,10 @@ test.describe("Multi-Project", () => {
     await expect(page.getByText("beta-task")).toBeVisible();
     await expect(page.getByText("alpha-task")).not.toBeVisible();
 
-    // Go back and re-enter alpha
-    await page.locator('header button[title="Back to projects"]').click();
-    await page.getByRole("heading", { name: "project-alpha" }).click();
+    // Navigate back to project alpha window
+    await page.goto(
+      `/?projectId=${alpha.id}&projectName=project-alpha&projectPath=${encodeURIComponent("/test/project-alpha")}`,
+    );
 
     // Alpha should show its session, not beta's
     const panel = page.locator(".border-l");
