@@ -20,14 +20,14 @@ const AvatarStack: FC<AvatarStackProps> = ({
       {visible.map((id, index) => (
         <div
           key={id}
-          className="rounded-full border border-neutral-900"
+          className="rounded-full border border-surface"
           style={{ marginLeft: index === 0 ? 0 : -4 }}
         >
           <SessionAvatar uuid={id} size={16} />
         </div>
       ))}
       {overflow > 0 && (
-        <span className="ml-1 text-xs text-neutral-500">+{overflow}</span>
+        <span className="ml-1 text-xs text-text-muted">+{overflow}</span>
       )}
     </div>
   );

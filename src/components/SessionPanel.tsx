@@ -27,11 +27,11 @@ const SessionPanel: FC<SessionPanelProps> = ({ projectId }) => {
   }, []);
 
   return (
-    <div className="flex w-70 shrink-0 flex-col border-l border-neutral-800 bg-neutral-950">
+    <div className="flex w-70 shrink-0 flex-col border-l border-border bg-bg">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2">
-        <h2 className="text-sm font-medium text-neutral-300">Sessions</h2>
-        <span className="text-xs text-neutral-600">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <h2 className="text-sm font-medium text-text-secondary">Sessions</h2>
+        <span className="text-xs text-text-disabled">
           {projectSessions.length}
         </span>
       </div>
@@ -48,14 +48,14 @@ const SessionPanel: FC<SessionPanelProps> = ({ projectId }) => {
       </div>
 
       {/* New session area */}
-      <div className="border-t border-neutral-800">
+      <div className="border-t border-border">
         {showInput ? (
           <NewSessionInput projectId={projectId} onDone={handleInputDone} />
         ) : (
           <button
             type="button"
             onClick={handleNewSession}
-            className="w-full px-3 py-2 text-left text-sm text-neutral-500 transition-colors hover:bg-neutral-800/50 hover:text-neutral-300"
+            className="w-full px-3 py-2 text-left text-sm text-text-muted transition-colors hover:bg-surface-subtle hover:text-text-secondary-hover"
           >
             + New Session
           </button>

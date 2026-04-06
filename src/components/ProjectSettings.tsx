@@ -74,19 +74,19 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="mx-4 w-full max-w-lg rounded-xl border border-neutral-800 bg-neutral-900 shadow-2xl">
+      <div className="mx-4 w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-800 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-neutral-100">
+            <h2 className="text-base font-semibold text-text">
               Project Settings
             </h2>
-            <p className="mt-0.5 text-xs text-neutral-500">{projectName}</p>
+            <p className="mt-0.5 text-xs text-text-muted">{projectName}</p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded px-2 py-1 text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-neutral-300"
+            className="rounded px-2 py-1 text-text-muted transition-colors hover:bg-interactive-hover hover:text-text-secondary-hover"
           >
             ✕
           </button>
@@ -95,7 +95,7 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
         {/* Body */}
         <div className="px-5 py-4">
           {loading ? (
-            <p className="py-4 text-center text-sm text-neutral-500">Loading...</p>
+            <p className="py-4 text-center text-sm text-text-muted">Loading...</p>
           ) : (
             <CommandTemplateInput
               value={commandTemplate}
@@ -106,14 +106,14 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-neutral-800 px-5 py-3">
+        <div className="flex items-center justify-end gap-3 border-t border-border px-5 py-3">
           {error && (
-            <p className="mr-auto text-xs text-red-400">{error}</p>
+            <p className="mr-auto text-xs text-red-700 dark:text-red-400">{error}</p>
           )}
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md px-4 py-2 text-sm text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-200"
+            className="rounded-md px-4 py-2 text-sm text-text-secondary transition-colors hover:bg-interactive-hover hover:text-text-hover"
           >
             Cancel
           </button>
@@ -121,7 +121,7 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
             type="button"
             onClick={handleSave}
             disabled={commandTemplate.trim() === "" || saving}
-            className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md bg-btn-primary-bg px-4 py-2 text-sm font-medium text-btn-primary-text transition-colors hover:bg-btn-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving ? "Saving..." : "Save"}
           </button>

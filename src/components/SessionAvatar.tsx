@@ -136,6 +136,8 @@ const SessionAvatar: FC<SessionAvatarProps> = ({ uuid, size = 24 }) => {
       aria-label={`Avatar for session ${uuid}`}
       data-testid="session-avatar"
     >
+      {/* Dark circular backdrop — branded constant for avatar legibility in both themes */}
+      <circle cx={50} cy={50} r={50} fill="#0f0a14" />
       <g transform={`rotate(${rotation}, 50, 50)`}>
         {renderShape(shape, color)}
       </g>

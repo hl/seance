@@ -1,7 +1,86 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
+  /* Semantic color tokens — light mode defaults */
+  --color-bg: #faf6f0;
+  --color-surface: #f3ede4;
+  --color-surface-hover: #ebe3d6;
+  --color-surface-active: #e3d9ca;
+  --color-surface-subtle: #f3ede480;
+  --color-surface-badge: #e8dfd4;
+
+  --color-border: #e0d5c7;
+  --color-border-input: #d4c7b6;
+  --color-border-focus: #7c4dba;
+  --color-border-hover: #c8b9a6;
+  --color-ring-focus: #7c4dba;
+
+  --color-text: #2a1f3d;
+  --color-text-hover: #1a1028;
+  --color-text-secondary: #6b5e7a;
+  --color-text-secondary-hover: #4d3f60;
+  --color-text-muted: #8a7d96;
+  --color-text-disabled: #a89cb4;
+  --color-text-placeholder: #a89cb4;
+
+  --color-accent: #7c4dba;
+  --color-accent-hover: #6a3fa5;
+  --color-accent-secondary: #8a6820;
+  --color-accent-secondary-hover: #705510;
+
+  --color-btn-primary-bg: #7c4dba;
+  --color-btn-primary-text: #ffffff;
+  --color-btn-primary-bg-hover: #6a3fa5;
+
+  --color-interactive-hover: #e8dfd4;
+
+  --color-status-done: #8a7d96;
+  --color-status-exited: #a89cb4;
+
+  /* Animation tokens */
   --animate-pulse-status: pulse-status 1.5s ease-in-out infinite;
+}
+
+/* Dark mode overrides */
+@layer base {
+  .dark {
+    --color-bg: #0f0a14;
+    --color-surface: #1a1028;
+    --color-surface-hover: #241838;
+    --color-surface-active: #2d2044;
+    --color-surface-subtle: #1a102880;
+    --color-surface-badge: #1a1028;
+
+    --color-border: #2d2340;
+    --color-border-input: #3d3358;
+    --color-border-focus: #9b72cf;
+    --color-border-hover: #4a3d6a;
+    --color-ring-focus: #9b72cf;
+
+    --color-text: #f0eaf5;
+    --color-text-hover: #ffffff;
+    --color-text-secondary: #b0a4c4;
+    --color-text-secondary-hover: #c8bede;
+    --color-text-muted: #7a6e90;
+    --color-text-disabled: #5a4e6e;
+    --color-text-placeholder: #5a4e6e;
+
+    --color-accent: #9b72cf;
+    --color-accent-hover: #b490e0;
+    --color-accent-secondary: #d4a04a;
+    --color-accent-secondary-hover: #e6b85c;
+
+    --color-btn-primary-bg: #f0eaf5;
+    --color-btn-primary-text: #0f0a14;
+    --color-btn-primary-bg-hover: #ffffff;
+
+    --color-interactive-hover: #241838;
+
+    --color-status-done: #7a6e90;
+    --color-status-exited: #5a4e6e;
+  }
 }
 
 @keyframes pulse-status {

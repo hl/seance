@@ -46,6 +46,8 @@ pub struct AppSettings {
     pub terminal_font_size: u16,
     #[serde(default = "default_theme")]
     pub terminal_theme: String,
+    #[serde(default = "default_app_theme")]
+    pub app_theme: String,
 }
 
 fn default_hook_port() -> u16 {
@@ -57,6 +59,9 @@ fn default_font_size() -> u16 {
 fn default_theme() -> String {
     "system".to_string()
 }
+fn default_app_theme() -> String {
+    "system".to_string()
+}
 
 impl Default for AppSettings {
     fn default() -> Self {
@@ -64,6 +69,7 @@ impl Default for AppSettings {
             hook_port: default_hook_port(),
             terminal_font_size: default_font_size(),
             terminal_theme: default_theme(),
+            app_theme: default_app_theme(),
         }
     }
 }

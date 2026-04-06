@@ -101,8 +101,8 @@ const NewSessionInput: FC<NewSessionInputProps> = ({ projectId, onDone }) => {
     <div className="px-3 py-2">
       {creating ? (
         <div className="flex items-center gap-2 py-1">
-          <div className="h-3 w-3 animate-spin rounded-full border-2 border-neutral-600 border-t-neutral-300" />
-          <span className="text-xs text-neutral-500">
+          <div className="h-3 w-3 animate-spin rounded-full border-2 border-text-disabled border-t-text-secondary" />
+          <span className="text-xs text-text-muted">
             Creating session...
           </span>
         </div>
@@ -116,12 +116,12 @@ const NewSessionInput: FC<NewSessionInputProps> = ({ projectId, onDone }) => {
             onKeyDown={handleKeyDown}
             placeholder="task name (e.g. fix auth bug)"
             disabled={creating}
-            className="w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm text-neutral-100 placeholder-neutral-600 outline-none focus:border-neutral-500 disabled:opacity-50"
+            className="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text placeholder-text-placeholder outline-none focus:border-border-focus disabled:opacity-50"
             aria-label="New session task name"
             data-testid="new-session-input"
           />
           {error && (
-            <p className="mt-1 text-xs text-red-400" role="alert">
+            <p className="mt-1 text-xs text-red-700 dark:text-red-400" role="alert">
               {error}
             </p>
           )}

@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import SessionView from "./components/SessionView";
 import ProjectPicker from "./components/ProjectPicker";
 import Settings from "./components/Settings";
 import { useAppStore } from "./stores/appStore";
+import { useThemeStore } from "./stores/themeStore";
 
 function App() {
   const currentView = useAppStore((s) => s.currentView);
@@ -29,6 +31,16 @@ function App() {
       setWindowProject(projectId);
       navigateToProject(projectId, decodeURIComponent(projectName));
     }
+
+    // Initialize theme store from persisted backend settings
+    invoke<{ app_theme?: string; terminal_theme?: string }>(
+      "get_app_settings",
+    ).then((settings) => {
+      useThemeStore.getState().initialize(settings);
+    }).catch(() => {
+      // Use defaults if backend not available
+      useThemeStore.getState().initialize({});
+    });
   }, [navigateToProject, setWindowProject]);
 
   // Back button handler: if this window was opened for a specific project,

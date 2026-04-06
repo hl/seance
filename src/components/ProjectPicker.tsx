@@ -75,16 +75,16 @@ const ProjectPicker: FC = () => {
   }, []);
 
   return (
-    <div className="flex h-screen flex-col bg-neutral-950">
+    <div className="flex h-screen flex-col bg-bg">
       {/* Header */}
-      <header className="flex shrink-0 items-center justify-between border-b border-neutral-800 px-4 py-3">
-        <h1 className="text-sm font-semibold text-neutral-100">
+      <header className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+        <h1 className="text-sm font-semibold text-text">
           S&eacute;ance
         </h1>
         <button
           type="button"
           onClick={navigateToSettings}
-          className="rounded px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-neutral-300"
+          className="rounded px-2 py-1 text-sm text-text-muted transition-colors hover:bg-interactive-hover hover:text-text-secondary-hover"
           title="App settings"
         >
           &#9881;
@@ -96,7 +96,7 @@ const ProjectPicker: FC = () => {
         <div className="mx-auto max-w-2xl px-4 py-6">
           {loading ? (
             <div className="flex items-center justify-center py-16">
-              <p className="text-sm text-neutral-500">Loading projects...</p>
+              <p className="text-sm text-text-muted">Loading projects...</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -118,13 +118,13 @@ const ProjectPicker: FC = () => {
               <button
                 type="button"
                 onClick={handleAddProject}
-                className="w-full rounded-lg border-2 border-dashed border-neutral-800 px-4 py-4 text-sm text-neutral-500 transition-colors hover:border-neutral-600 hover:text-neutral-300"
+                className="w-full rounded-lg border-2 border-dashed border-border px-4 py-4 text-sm text-text-muted transition-colors hover:border-border-hover hover:text-text-secondary-hover"
               >
                 + Add Project
               </button>
 
               {projects.length === 0 && !loading && (
-                <p className="pt-4 text-center text-xs text-neutral-600">
+                <p className="pt-4 text-center text-xs text-text-disabled">
                   No projects yet. Click &ldquo;+ Add Project&rdquo; to get
                   started.
                 </p>

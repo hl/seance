@@ -28,24 +28,24 @@ const SessionView: FC<SessionViewProps> = ({
   }, [projectId, loadSessions, setActiveProject]);
 
   return (
-    <div className="flex h-screen flex-col bg-neutral-950">
+    <div className="flex h-screen flex-col bg-bg">
       {/* Header bar */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-neutral-800 px-4 py-2">
+      <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-2">
         <button
           type="button"
           onClick={onBack}
-          className="rounded px-2 py-1 text-sm text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-200"
+          className="rounded px-2 py-1 text-sm text-text-secondary transition-colors hover:bg-interactive-hover hover:text-text-hover"
           title="Back to projects"
         >
           ←
         </button>
-        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-neutral-100">
+        <h1 className="min-w-0 flex-1 truncate text-sm font-semibold text-text">
           {projectName}
         </h1>
         <button
           type="button"
           onClick={() => setShowSettings(true)}
-          className="rounded px-2 py-1 text-sm text-neutral-500 transition-colors hover:bg-neutral-800 hover:text-neutral-300"
+          className="rounded px-2 py-1 text-sm text-text-muted transition-colors hover:bg-interactive-hover hover:text-text-secondary-hover"
           title="Project settings"
         >
           ⚙

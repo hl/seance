@@ -1,18 +1,21 @@
 import { type FC, useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useAppStore } from "../stores/appStore";
+import { useThemeStore } from "../stores/themeStore";
 
 // Matches the Rust AppSettings struct (snake_case)
 interface AppSettings {
   hook_port: number;
   terminal_font_size: number;
   terminal_theme: string;
+  app_theme: string;
 }
 
 const DEFAULT_SETTINGS: AppSettings = {
   hook_port: 7837,
   terminal_font_size: 14,
   terminal_theme: "system",
+  app_theme: "system",
 };
 
 const Settings: FC = () => {
@@ -47,6 +50,18 @@ const Settings: FC = () => {
     setSuccess(false);
     try {
       await invoke("update_app_settings", { settings });
+      // Mirror theme to localStorage for flash-prevention script
+      try {
+        localStorage.setItem("seance-theme", settings.app_theme);
+      } catch {
+        // localStorage may be full — flash-prevention script will fall back to matchMedia
+      }
+      // Sync terminal theme to the store
+      useThemeStore
+        .getState()
+        .setTerminalTheme(
+          settings.terminal_theme as "system" | "dark" | "light",
+        );
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
     } catch (err) {
@@ -65,35 +80,66 @@ const Settings: FC = () => {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-neutral-950">
-        <p className="text-sm text-neutral-500">Loading settings...</p>
+      <div className="flex h-screen items-center justify-center bg-bg">
+        <p className="text-sm text-text-muted">Loading settings...</p>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen flex-col bg-neutral-950">
+    <div className="flex h-screen flex-col bg-bg">
       {/* Header */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-neutral-800 px-4 py-3">
+      <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
         <button
           type="button"
           onClick={navigateToPicker}
-          className="rounded px-2 py-1 text-sm text-neutral-400 transition-colors hover:bg-neutral-800 hover:text-neutral-200"
+          className="rounded px-2 py-1 text-sm text-text-secondary transition-colors hover:bg-interactive-hover hover:text-text-hover"
           title="Back to projects"
         >
           &larr;
         </button>
-        <h1 className="text-sm font-semibold text-neutral-100">Settings</h1>
+        <h1 className="text-sm font-semibold text-text">Settings</h1>
       </header>
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-lg space-y-6 px-4 py-6">
+          {/* App Theme */}
+          <div>
+            <label className="mb-1 block text-sm font-medium text-text-secondary">
+              App Theme
+            </label>
+            <div className="flex gap-1 rounded-md border border-border-input bg-surface p-1">
+              {(["system", "dark", "light"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    updateField("app_theme", option);
+                    useThemeStore
+                      .getState()
+                      .setPreference(option);
+                  }}
+                  className={`flex-1 rounded px-3 py-1.5 text-sm font-medium capitalize transition-colors ${
+                    settings.app_theme === option
+                      ? "bg-btn-primary-bg text-btn-primary-text"
+                      : "text-text-secondary hover:text-text-hover"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-text-muted">
+              Appearance for the app UI (default: system)
+            </p>
+          </div>
+
           {/* Hook Server Port */}
           <div>
             <label
               htmlFor="hook-port"
-              className="mb-1 block text-sm font-medium text-neutral-300"
+              className="mb-1 block text-sm font-medium text-text-secondary"
             >
               Hook Server Port
             </label>
@@ -106,9 +152,9 @@ const Settings: FC = () => {
               onChange={(e) =>
                 updateField("hook_port", Number(e.target.value))
               }
-              className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+              className="w-full rounded-md border border-border-input bg-surface px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-ring-focus"
             />
-            <p className="mt-1 text-xs text-neutral-500">
+            <p className="mt-1 text-xs text-text-muted">
               Port for the local HTTP hook server (default: 7837)
             </p>
           </div>
@@ -117,7 +163,7 @@ const Settings: FC = () => {
           <div>
             <label
               htmlFor="font-size"
-              className="mb-1 block text-sm font-medium text-neutral-300"
+              className="mb-1 block text-sm font-medium text-text-secondary"
             >
               Terminal Font Size
             </label>
@@ -130,9 +176,9 @@ const Settings: FC = () => {
               onChange={(e) =>
                 updateField("terminal_font_size", Number(e.target.value))
               }
-              className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+              className="w-full rounded-md border border-border-input bg-surface px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-ring-focus"
             />
-            <p className="mt-1 text-xs text-neutral-500">
+            <p className="mt-1 text-xs text-text-muted">
               Font size for terminal sessions (default: 14)
             </p>
           </div>
@@ -141,7 +187,7 @@ const Settings: FC = () => {
           <div>
             <label
               htmlFor="theme"
-              className="mb-1 block text-sm font-medium text-neutral-300"
+              className="mb-1 block text-sm font-medium text-text-secondary"
             >
               Terminal Theme
             </label>
@@ -154,13 +200,13 @@ const Settings: FC = () => {
                   e.target.value,
                 )
               }
-              className="w-full rounded-md border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-500"
+              className="w-full rounded-md border border-border-input bg-surface px-3 py-2 text-sm text-text focus:outline-none focus:ring-1 focus:ring-ring-focus"
             >
               <option value="system">System</option>
               <option value="dark">Dark</option>
               <option value="light">Light</option>
             </select>
-            <p className="mt-1 text-xs text-neutral-500">
+            <p className="mt-1 text-xs text-text-muted">
               Color theme for terminal sessions
             </p>
           </div>
@@ -171,14 +217,14 @@ const Settings: FC = () => {
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="rounded-md bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-md bg-btn-primary-bg px-4 py-2 text-sm font-medium text-btn-primary-text transition-colors hover:bg-btn-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               {saving ? "Saving..." : "Save Settings"}
             </button>
             {success && (
-              <span className="text-xs text-green-400">Settings saved</span>
+              <span className="text-xs text-green-700 dark:text-green-400">Settings saved</span>
             )}
-            {error && <span className="text-xs text-red-400">{error}</span>}
+            {error && <span className="text-xs text-red-700 dark:text-red-400">{error}</span>}
           </div>
         </div>
       </div>

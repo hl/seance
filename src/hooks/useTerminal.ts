@@ -4,6 +4,34 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { invoke } from "@tauri-apps/api/core";
 import { useSessionStore } from "../stores/sessionStore";
+import { useThemeStore } from "../stores/themeStore";
+
+const DARK_TERMINAL_THEME = {
+  background: "#0f0a14",
+  foreground: "#f0eaf5",
+  cursor: "#f0eaf5",
+  selectionBackground: "#2d2340",
+};
+
+const LIGHT_TERMINAL_THEME = {
+  background: "#faf6f0",
+  foreground: "#2a1f3d",
+  cursor: "#2a1f3d",
+  selectionBackground: "#d4c7b680",
+};
+
+type ThemePreference = "system" | "dark" | "light";
+type ResolvedTheme = "dark" | "light";
+
+function getTerminalTheme(
+  terminalTheme: ThemePreference,
+  resolved: ResolvedTheme,
+): typeof DARK_TERMINAL_THEME {
+  if (terminalTheme === "dark") return DARK_TERMINAL_THEME;
+  if (terminalTheme === "light") return LIGHT_TERMINAL_THEME;
+  // "system" — follow the resolved app theme
+  return resolved === "dark" ? DARK_TERMINAL_THEME : LIGHT_TERMINAL_THEME;
+}
 
 export interface UseTerminalReturn {
   terminalRef: React.RefObject<HTMLDivElement | null>;
@@ -33,18 +61,14 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
     const checkAndInit = () => {
       if (container.offsetWidth === 0 || container.offsetHeight === 0) return;
 
+      const { terminalTheme, resolved } = useThemeStore.getState();
       const term = new Terminal({
         cursorBlink: true,
         cursorStyle: "bar",
         fontSize: 14,
         fontFamily:
           "'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, monospace",
-        theme: {
-          background: "#0a0a0a",
-          foreground: "#f5f5f5",
-          cursor: "#f5f5f5",
-          selectionBackground: "#404040",
-        },
+        theme: getTerminalTheme(terminalTheme, resolved),
         allowProposedApi: true,
       });
 
@@ -146,6 +170,18 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
       }
     };
   }, []); // Mount once, clean up on unmount
+
+  // React to theme changes — live-patch the terminal theme
+  const resolved = useThemeStore((s) => s.resolved);
+  const terminalTheme = useThemeStore((s) => s.terminalTheme);
+  useEffect(() => {
+    if (termRef.current && initializedRef.current) {
+      termRef.current.options.theme = getTerminalTheme(
+        terminalTheme,
+        resolved,
+      );
+    }
+  }, [resolved, terminalTheme]);
 
   // Re-fit when session changes (terminal may need resizing)
   useEffect(() => {

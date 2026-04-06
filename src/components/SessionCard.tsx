@@ -53,14 +53,14 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
       onClick={handleClick}
       className={`group w-full rounded-md px-3 py-2 text-left transition-colors ${
         isActive
-          ? "bg-neutral-800"
-          : "hover:bg-neutral-800/50"
+          ? "bg-surface-active"
+          : "hover:bg-surface-subtle"
       }`}
     >
       {/* Row 1: Avatar + Name + Status */}
       <div className="flex items-center gap-2">
         <SessionAvatar uuid={session.id} size={20} />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-neutral-100">
+        <span className="min-w-0 flex-1 truncate text-sm font-medium text-text">
           {session.generatedName}
         </span>
         <StatusIndicator status={session.status} />
@@ -75,7 +75,7 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
                 killSession(session.id);
               }
             }}
-            className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-neutral-700 hover:text-neutral-300 group-hover:inline-block"
+            className="ml-1 hidden rounded px-1 text-xs text-text-muted hover:bg-interactive-hover hover:text-text-secondary-hover group-hover:inline-block"
             title="Kill session"
           >
             ✕
@@ -92,7 +92,7 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
                 restartSession(session.id);
               }
             }}
-            className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-neutral-700 hover:text-neutral-300 group-hover:inline-block"
+            className="ml-1 hidden rounded px-1 text-xs text-text-muted hover:bg-interactive-hover hover:text-text-secondary-hover group-hover:inline-block"
             title="Restart session"
           >
             ↻
@@ -109,7 +109,7 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
                 deleteSession(session.id);
               }
             }}
-            className="ml-1 hidden rounded px-1 text-xs text-neutral-500 hover:bg-red-900/50 hover:text-red-400 group-hover:inline-block"
+            className="ml-1 hidden rounded px-1 text-xs text-text-muted hover:bg-red-100/50 hover:text-red-700 dark:hover:bg-red-900/50 dark:hover:text-red-400 group-hover:inline-block"
             title="Remove session"
           >
             ✕
@@ -118,13 +118,13 @@ const SessionCard: FC<SessionCardProps> = ({ session, isActive }) => {
       </div>
 
       {/* Row 2: Task */}
-      <p className="mt-0.5 truncate pl-7 text-xs text-neutral-500">
+      <p className="mt-0.5 truncate pl-7 text-xs text-text-muted">
         {session.task}
       </p>
 
       {/* Row 3: Last message (active card only) */}
       {isActive && session.lastMessage && (
-        <p className="mt-0.5 truncate pl-7 text-xs text-neutral-600">
+        <p className="mt-0.5 truncate pl-7 text-xs text-text-disabled">
           {session.lastMessage}
         </p>
       )}
