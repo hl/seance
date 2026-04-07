@@ -85,12 +85,16 @@ const ProjectCard: FC<ProjectCardProps> = ({
       {/* Path */}
       <p className="mt-1 truncate text-xs text-text-muted">{path}</p>
 
-      {/* Bottom row: session count + avatar stack */}
+      {/* Bottom row: session counts + avatar stack */}
       <div className="mt-3 flex items-center gap-2">
         <span className="rounded-full bg-surface-badge px-2 py-0.5 text-xs text-text-secondary">
-          {activeSessionCount}{" "}
-          {activeSessionCount === 1 ? "session" : "sessions"}
+          {activeSessionCount} active
         </span>
+        {sessionIds.length - activeSessionCount > 0 && (
+          <span className="rounded-full bg-surface-badge px-2 py-0.5 text-xs text-text-disabled">
+            {sessionIds.length - activeSessionCount} inactive
+          </span>
+        )}
         <AvatarStack sessionIds={sessionIds} />
       </div>
     </button>

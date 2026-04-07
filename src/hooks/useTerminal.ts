@@ -2,7 +2,9 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSessionStore } from "../stores/sessionStore";
 import { useThemeStore } from "../stores/themeStore";
 
@@ -77,6 +79,11 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
 
       const fitAddon = new FitAddon();
       term.loadAddon(fitAddon);
+      term.loadAddon(
+        new WebLinksAddon((_event, uri) => {
+          openUrl(uri).catch(() => {});
+        }),
+      );
       term.open(container);
 
       const loadWebgl = () => {
@@ -209,6 +216,25 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
       }
     }
   }, [activeSessionId]);
+
+  // Refresh terminal when the page regains visibility. WebKit throttles
+  // rendering for background webviews, so buffered output may not paint
+  // until we explicitly ask xterm to re-render.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && termRef.current && initializedRef.current) {
+        const term = termRef.current;
+        try {
+          term.refresh(0, term.rows - 1);
+          fitAddonRef.current?.fit();
+        } catch {
+          // ignore
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   const writeData = useCallback((data: string | Uint8Array) => {
     termRef.current?.write(data);

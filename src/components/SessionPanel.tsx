@@ -69,12 +69,12 @@ const SessionPanel: FC<SessionPanelProps> = ({
 
     if (isAlive) {
       items.push({
-        label: "Kill",
+        label: "Terminate",
         onClick: async () => {
           setContextMenu(null);
           const confirmed = await confirm(
-            "Are you sure you want to kill this session?",
-            { title: "Kill Session", kind: "warning" },
+            "Are you sure you want to terminate this session?",
+            { title: "Terminate Session", kind: "warning" },
           );
           if (confirmed) {
             killSession(session.id);

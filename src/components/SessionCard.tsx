@@ -15,14 +15,13 @@ interface SessionCardProps {
 }
 
 function formatElapsed(ms: number): string {
-  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+  const totalMinutes = Math.max(0, Math.floor(ms / 60_000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
 
   if (hours >= 1) return `${hours}h ${minutes}m`;
-  if (minutes >= 1) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
+  if (totalMinutes >= 1) return `${minutes}m`;
+  return "<1m";
 }
 
 function formatCreatedAt(timestamp: number): string {

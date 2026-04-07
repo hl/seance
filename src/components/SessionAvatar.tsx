@@ -3,10 +3,14 @@ import { type FC } from "react";
 /**
  * Deterministic SVG avatar derived from a session UUID.
  *
- * Maps UUID bytes to:
- * - Shape: circle, triangle, square, pentagon, hexagon, diamond (6 options)
- * - Fill color: from a curated palette of 16 visually distinct colors
- * - Rotation: subtle rotation for variety (0-30 degrees)
+ * Layers (bottom to top):
+ * 1. Dark circular backdrop
+ * 2. Subtle ring or orbital accent
+ * 3. Primary shape (one of 6) with fill color
+ * 4. Inner detail shape (smaller, contrasting) for depth
+ *
+ * Uses 7 UUID bytes for: primary shape, primary color, rotation,
+ * accent color, inner shape, ring style, and inner rotation.
  *
  * Same UUID always produces the same visual. No backend needed.
  */
@@ -16,11 +20,6 @@ interface SessionAvatarProps {
   size?: number;
 }
 
-/**
- * Parse hex bytes from a UUID string.
- * UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
- * We strip dashes and parse hex pairs.
- */
 function uuidToBytes(uuid: string): number[] {
   const hex = uuid.replace(/-/g, "");
   const bytes: number[] = [];
@@ -30,8 +29,6 @@ function uuidToBytes(uuid: string): number[] {
   return bytes;
 }
 
-// 16 visually distinct colors that work well on dark backgrounds (bg-neutral-950).
-// Curated for vibrancy and mutual distinguishability.
 const COLOR_PALETTE = [
   "#FF6B6B", // coral red
   "#4ECDC4", // teal
@@ -68,13 +65,9 @@ const SHAPES: ShapeType[] = [
   "diamond",
 ];
 
-/**
- * Generate SVG path data for regular polygons centered at (50, 50) with radius 35.
- */
 function polygonPoints(sides: number, cx: number, cy: number, r: number): string {
   const points: string[] = [];
   for (let i = 0; i < sides; i++) {
-    // Start from top (-90 degrees)
     const angle = (Math.PI * 2 * i) / sides - Math.PI / 2;
     const x = cx + r * Math.cos(angle);
     const y = cy + r * Math.sin(angle);
@@ -83,37 +76,90 @@ function polygonPoints(sides: number, cx: number, cy: number, r: number): string
   return points.join(" ");
 }
 
-function renderShape(shape: ShapeType, color: string): React.JSX.Element {
-  const cx = 50;
-  const cy = 50;
-  const r = 38;
-
+function renderShape(
+  shape: ShapeType,
+  color: string,
+  cx: number,
+  cy: number,
+  r: number,
+  opacity = 1,
+): React.JSX.Element {
+  const props = { fill: color, opacity };
   switch (shape) {
     case "circle":
-      return <circle cx={cx} cy={cy} r={r} fill={color} />;
+      return <circle cx={cx} cy={cy} r={r} {...props} />;
     case "triangle":
-      return <polygon points={polygonPoints(3, cx, cy, r)} fill={color} />;
-    case "square":
+      return <polygon points={polygonPoints(3, cx, cy, r)} {...props} />;
+    case "square": {
+      const half = r * 0.75;
       return (
-        <rect
-          x={cx - r * 0.75}
-          y={cy - r * 0.75}
-          width={r * 1.5}
-          height={r * 1.5}
-          fill={color}
-          rx={4}
-        />
+        <rect x={cx - half} y={cy - half} width={half * 2} height={half * 2} rx={4} {...props} />
       );
+    }
     case "pentagon":
-      return <polygon points={polygonPoints(5, cx, cy, r)} fill={color} />;
+      return <polygon points={polygonPoints(5, cx, cy, r)} {...props} />;
     case "hexagon":
-      return <polygon points={polygonPoints(6, cx, cy, r)} fill={color} />;
+      return <polygon points={polygonPoints(6, cx, cy, r)} {...props} />;
     case "diamond":
       return (
         <polygon
           points={`${cx},${cy - r} ${cx + r * 0.7},${cy} ${cx},${cy + r} ${cx - r * 0.7},${cy}`}
-          fill={color}
+          {...props}
         />
+      );
+  }
+}
+
+type RingStyle = "dotted" | "dashed" | "solid" | "double";
+const RING_STYLES: RingStyle[] = ["dotted", "dashed", "solid", "double"];
+
+function renderRing(
+  style: RingStyle,
+  color: string,
+  rotation: number,
+): React.JSX.Element {
+  const cx = 50;
+  const cy = 50;
+  const ringColor = color;
+  const opacity = 0.35;
+
+  switch (style) {
+    case "dotted": {
+      // 8 small dots arranged in a ring
+      const dots: React.JSX.Element[] = [];
+      for (let i = 0; i < 8; i++) {
+        const angle = (Math.PI * 2 * i) / 8 + (rotation * Math.PI) / 180;
+        const x = cx + 44 * Math.cos(angle);
+        const y = cy + 44 * Math.sin(angle);
+        dots.push(
+          <circle key={i} cx={x.toFixed(2)} cy={y.toFixed(2)} r={2.5} fill={ringColor} opacity={opacity} />,
+        );
+      }
+      return <g>{dots}</g>;
+    }
+    case "dashed":
+      return (
+        <circle
+          cx={cx} cy={cy} r={44}
+          fill="none" stroke={ringColor} strokeWidth={2}
+          strokeDasharray="8 6" opacity={opacity}
+          transform={`rotate(${rotation}, ${cx}, ${cy})`}
+        />
+      );
+    case "solid":
+      return (
+        <circle
+          cx={cx} cy={cy} r={44}
+          fill="none" stroke={ringColor} strokeWidth={1.5}
+          opacity={opacity}
+        />
+      );
+    case "double":
+      return (
+        <g opacity={opacity}>
+          <circle cx={cx} cy={cy} r={44} fill="none" stroke={ringColor} strokeWidth={1} />
+          <circle cx={cx} cy={cy} r={47} fill="none" stroke={ringColor} strokeWidth={0.7} />
+        </g>
       );
   }
 }
@@ -122,9 +168,13 @@ const SessionAvatar: FC<SessionAvatarProps> = ({ uuid, size = 24 }) => {
   const bytes = uuidToBytes(uuid);
 
   // Derive visual properties from UUID bytes
-  const shape = SHAPES[bytes[0] % SHAPES.length];
-  const color = COLOR_PALETTE[bytes[1] % COLOR_PALETTE.length];
-  const rotation = (bytes[2] % 31); // 0-30 degrees
+  const primaryShape = SHAPES[bytes[0] % SHAPES.length];
+  const primaryColor = COLOR_PALETTE[bytes[1] % COLOR_PALETTE.length];
+  const rotation = bytes[2] % 31;
+  const accentColor = COLOR_PALETTE[(bytes[3] + 5) % COLOR_PALETTE.length]; // offset to avoid matching primary
+  const innerShape = SHAPES[(bytes[4] + 3) % SHAPES.length]; // offset to differ from primary
+  const ringStyle = RING_STYLES[bytes[5] % RING_STYLES.length];
+  const innerRotation = bytes[6] % 60;
 
   return (
     <svg
@@ -136,10 +186,20 @@ const SessionAvatar: FC<SessionAvatarProps> = ({ uuid, size = 24 }) => {
       aria-label={`Avatar for session ${uuid}`}
       data-testid="session-avatar"
     >
-      {/* Dark circular backdrop — branded constant for avatar legibility in both themes */}
+      {/* Dark circular backdrop */}
       <circle cx={50} cy={50} r={50} fill="#0f0a14" />
+
+      {/* Ring accent */}
+      {renderRing(ringStyle, accentColor, rotation * 3)}
+
+      {/* Primary shape */}
       <g transform={`rotate(${rotation}, 50, 50)`}>
-        {renderShape(shape, color)}
+        {renderShape(primaryShape, primaryColor, 50, 50, 32)}
+      </g>
+
+      {/* Inner detail shape — smaller, offset rotation, semi-transparent accent */}
+      <g transform={`rotate(${innerRotation}, 50, 50)`}>
+        {renderShape(innerShape, accentColor, 50, 50, 14, 0.6)}
       </g>
     </svg>
   );
