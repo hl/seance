@@ -108,7 +108,7 @@ const MarkdownBrowser: FC<MarkdownBrowserProps> = ({
         ) : !selectedFile ? (
           <p className="text-sm text-text-muted">Select a file to preview</p>
         ) : (
-          <article className="prose prose-sm max-w-none text-text prose-headings:text-text prose-a:text-accent prose-strong:text-text prose-code:text-text-secondary prose-pre:bg-surface prose-pre:border prose-pre:border-border">
+          <article className="prose prose-sm dark:prose-invert max-w-none text-text prose-headings:text-text prose-a:text-accent prose-strong:text-text prose-code:text-text-secondary prose-pre:bg-surface prose-pre:border prose-pre:border-border">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               rehypePlugins={[rehypeHighlight, rehypeSanitize]}
