@@ -84,6 +84,14 @@
   }
 }
 
+/* diff2html layout fix: make code lines fill available width */
+.diff2html-wrapper .d2h-code-line {
+  width: 100%;
+}
+.diff2html-wrapper .d2h-code-line-ctn {
+  width: 100%;
+}
+
 /* diff2html dark mode overrides */
 .dark .diff2html-wrapper {
   /* File headers */
