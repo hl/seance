@@ -36,12 +36,16 @@ const SessionView: FC<SessionViewProps> = ({
       <div className="flex flex-1 flex-col overflow-hidden">
         <TabBar />
         <div className="relative flex-1 overflow-hidden">
-          {/* Terminal — always mounted via display:none/block to preserve xterm state */}
+          {/* Terminal — uses visibility:hidden (not display:none) so xterm.js
+              always has dimensions to measure and render against. */}
           <div
             className="absolute inset-0"
-            style={{ display: activeTab === "terminal" ? "block" : "none" }}
+            style={{
+              visibility: activeTab === "terminal" ? "visible" : "hidden",
+              pointerEvents: activeTab === "terminal" ? "auto" : "none",
+            }}
           >
-            <TerminalView isVisible={activeTab === "terminal"} />
+            <TerminalView />
           </div>
 
           {/* Markdown browser — always mounted to preserve scroll/selection state */}
