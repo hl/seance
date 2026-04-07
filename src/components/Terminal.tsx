@@ -13,7 +13,7 @@ const TerminalView: FC = () => {
     if (!s.activeSessionId) return null;
     return s.sessions.get(s.activeSessionId)?.lastStartedAt ?? null;
   });
-  const { terminalRef, writeData, reset, fit, fitAndGetDimensions, onData } =
+  const { terminalRef, writeData, reset, fit, fitAndGetDimensions, onData, isReady } =
     useTerminal(activeSessionId);
   const channelRef = useRef<Channel<number[]> | null>(null);
   const [subscribeError, setSubscribeError] = useState(false);
@@ -21,7 +21,7 @@ const TerminalView: FC = () => {
   // Session switching: reset terminal, subscribe to output, replay scrollback.
   // Also re-runs when activeSessionStartedAt changes (session restarted).
   useEffect(() => {
-    if (!activeSessionId) return;
+    if (!activeSessionId || !isReady) return;
 
     // Reset terminal for new session
     reset();
@@ -68,11 +68,11 @@ const TerminalView: FC = () => {
       cancelled = true;
       channelRef.current = null;
     };
-  }, [activeSessionId, activeSessionStartedAt, writeData, reset, fit, fitAndGetDimensions]);
+  }, [activeSessionId, activeSessionStartedAt, isReady, writeData, reset, fit, fitAndGetDimensions]);
 
   // Forward terminal input to PTY
   useEffect(() => {
-    if (!activeSessionId) return;
+    if (!activeSessionId || !isReady) return;
 
     const dispose = onData((data: string) => {
       invoke("send_input", {
@@ -84,7 +84,7 @@ const TerminalView: FC = () => {
     });
 
     return dispose;
-  }, [activeSessionId, onData]);
+  }, [activeSessionId, isReady, onData]);
 
   return (
     <div className="relative flex-1 overflow-hidden bg-bg">

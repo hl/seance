@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -49,6 +49,7 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
   const initializedRef = useRef(false);
+  const [isReady, setIsReady] = useState(false);
 
   // Create terminal once when container is available. Never dispose on
   // session switch — just reset() the content. This avoids xterm.js
@@ -106,6 +107,7 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
       termRef.current = term;
       fitAddonRef.current = fitAddon;
       initializedRef.current = true;
+      setIsReady(true);
 
       const observer = new ResizeObserver(() => {
         try {
@@ -159,6 +161,7 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
       termRef.current = null;
       fitAddonRef.current = null;
       initializedRef.current = false;
+      setIsReady(false);
       if (term) {
         setTimeout(() => {
           try {
@@ -236,6 +239,6 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
     fitAndGetDimensions,
     fit,
     onData,
-    isReady: initializedRef.current,
+    isReady,
   };
 }
