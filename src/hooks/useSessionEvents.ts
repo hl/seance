@@ -15,6 +15,12 @@ interface ExitedPayload {
   exitedAt?: string;
 }
 
+interface WorkingDirPayload {
+  sessionId: string;
+  workingDir: string;
+  baseCommit: string | null;
+}
+
 /**
  * Subscribes to Tauri events for ALL sessions in the given project.
  * When the session list changes, diffs the IDs and only adds/removes
@@ -104,6 +110,17 @@ export function useProjectSessionEvents(projectId: string): void {
                 undefined,
                 exitCode,
                 parsedExitedAt,
+              );
+          }
+        }),
+        listen<WorkingDirPayload>(`session-working-dir-${id}`, (event) => {
+          if (mountedRef.current) {
+            useSessionStore
+              .getState()
+              .updateWorkingDir(
+                event.payload.sessionId,
+                event.payload.workingDir,
+                event.payload.baseCommit,
               );
           }
         }),

@@ -9,6 +9,8 @@ export type SessionStatus =
   | "error"
   | "exited";
 
+export type SessionTab = "terminal" | "markdown" | "diff";
+
 export interface SessionData {
   id: string;
   projectId: string;
@@ -20,6 +22,8 @@ export interface SessionData {
   lastStartedAt: number | null;
   exitedAt: number | null;
   exitCode: number | null;
+  workingDir: string;
+  baseCommit: string | null;
 }
 
 // Backend response shape from create_session / restart_session
@@ -35,6 +39,8 @@ interface BackendSession {
   last_known_pid: number | null;
   exited_at: string | null;
   exit_code: number | null;
+  working_dir: string;
+  base_commit: string | null;
 }
 
 function backendToFrontend(s: BackendSession): SessionData {
@@ -51,6 +57,8 @@ function backendToFrontend(s: BackendSession): SessionData {
       : null,
     exitedAt: s.exited_at ? parseInt(s.exited_at, 10) * 1000 : null,
     exitCode: s.exit_code ?? null,
+    workingDir: s.working_dir ?? "",
+    baseCommit: s.base_commit ?? null,
   };
 }
 
@@ -58,6 +66,7 @@ interface SessionState {
   sessions: Map<string, SessionData>;
   activeSessionId: string | null;
   activeProjectId: string | null;
+  activeTabBySession: Map<string, SessionTab>;
 
   createSession: (projectId: string, task: string) => Promise<string>;
   switchSession: (sessionId: string) => void;
@@ -71,17 +80,25 @@ interface SessionState {
     exitedAt?: number,
   ) => void;
   updateName: (sessionId: string, name: string) => void;
+  updateWorkingDir: (
+    sessionId: string,
+    workingDir: string,
+    baseCommit: string | null,
+  ) => void;
   renameSession: (sessionId: string, name: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   setActiveProject: (projectId: string | null) => void;
   loadSessions: (projectId: string) => Promise<void>;
   switchToIndex: (index: number) => void;
+  setActiveTab: (sessionId: string, tab: SessionTab) => void;
+  getActiveTab: (sessionId: string) => SessionTab;
 }
 
 export const useSessionStore = create<SessionState>()((set, get) => ({
   sessions: new Map(),
   activeSessionId: null,
   activeProjectId: null,
+  activeTabBySession: new Map(),
 
   createSession: async (projectId: string, task: string) => {
     // Call the backend to spawn the PTY. The Channel for output streaming
@@ -237,5 +254,32 @@ export const useSessionStore = create<SessionState>()((set, get) => ({
     if (index >= 0 && index < projectSessions.length) {
       set({ activeSessionId: projectSessions[index].id });
     }
+  },
+
+  updateWorkingDir: (
+    sessionId: string,
+    workingDir: string,
+    baseCommit: string | null,
+  ) => {
+    set((state) => {
+      const next = new Map(state.sessions);
+      const session = next.get(sessionId);
+      if (session) {
+        next.set(sessionId, { ...session, workingDir, baseCommit });
+      }
+      return { sessions: next };
+    });
+  },
+
+  setActiveTab: (sessionId: string, tab: SessionTab) => {
+    set((state) => {
+      const next = new Map(state.activeTabBySession);
+      next.set(sessionId, tab);
+      return { activeTabBySession: next };
+    });
+  },
+
+  getActiveTab: (sessionId: string): SessionTab => {
+    return get().activeTabBySession.get(sessionId) ?? "terminal";
   },
 }));
