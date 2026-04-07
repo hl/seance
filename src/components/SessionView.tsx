@@ -41,7 +41,7 @@ const SessionView: FC<SessionViewProps> = ({
             className="absolute inset-0"
             style={{ display: activeTab === "terminal" ? "block" : "none" }}
           >
-            <TerminalView />
+            <TerminalView isVisible={activeTab === "terminal"} />
           </div>
 
           {/* Markdown browser — always mounted to preserve scroll/selection state */}

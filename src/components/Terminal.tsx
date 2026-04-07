@@ -5,7 +5,11 @@ import { useTerminal } from "../hooks/useTerminal";
 import { useSessionStore } from "../stores/sessionStore";
 import "@xterm/xterm/css/xterm.css";
 
-const TerminalView: FC = () => {
+interface TerminalViewProps {
+  isVisible?: boolean;
+}
+
+const TerminalView: FC<TerminalViewProps> = ({ isVisible = true }) => {
   const activeSessionId = useSessionStore((s) => s.activeSessionId);
   // Track lastStartedAt so the effect re-runs when a session is restarted
   // (activeSessionId stays the same, but the PTY is new and needs re-subscription).
@@ -85,6 +89,36 @@ const TerminalView: FC = () => {
 
     return dispose;
   }, [activeSessionId, isReady, onData]);
+
+  // Re-fit and refresh when the terminal tab becomes visible again.
+  // xterm.js cannot measure dimensions while display:none, so it needs
+  // a fit() + refresh() once the container is shown.
+  useEffect(() => {
+    if (isVisible && isReady) {
+      // Small delay to let the browser finish layout after display:block
+      const timer = setTimeout(() => {
+        fit();
+        // Force a full repaint of all rows
+        const term = (terminalRef as any).current?.querySelector?.("textarea")?.closest?.(".xterm");
+        if (term) {
+          // The underlying terminal instance is stored in useTerminal —
+          // fit() already triggers a refresh via the FitAddon, but we
+          // also sync the PTY size in case it drifted.
+          if (activeSessionId) {
+            const dims = fitAndGetDimensions();
+            if (dims) {
+              invoke("resize_pty", {
+                sessionId: activeSessionId,
+                cols: dims.cols,
+                rows: dims.rows,
+              }).catch(() => {});
+            }
+          }
+        }
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, isReady, fit, fitAndGetDimensions, activeSessionId]);
 
   return (
     <div className="relative flex-1 overflow-hidden bg-bg">
