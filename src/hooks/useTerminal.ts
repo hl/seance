@@ -58,6 +58,8 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
     const container = containerRef.current;
     if (!container || initializedRef.current) return;
 
+    let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+
     // Wait for the container to have dimensions (may be hidden initially)
     const checkAndInit = () => {
       if (container.offsetWidth === 0 || container.offsetHeight === 0) return;
@@ -77,13 +79,20 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
       term.loadAddon(fitAddon);
       term.open(container);
 
-      try {
-        const webglAddon = new WebglAddon();
-        webglAddon.onContextLoss(() => webglAddon.dispose());
-        term.loadAddon(webglAddon);
-      } catch {
-        // WebGL not available
-      }
+      const loadWebgl = () => {
+        try {
+          const addon = new WebglAddon();
+          addon.onContextLoss(() => {
+            addon.dispose();
+            // Recover by reloading after a short delay
+            setTimeout(loadWebgl, 500);
+          });
+          term.loadAddon(addon);
+        } catch {
+          // WebGL not available — canvas renderer used as fallback
+        }
+      };
+      loadWebgl();
 
       try {
         fitAddon.fit();
@@ -110,22 +119,25 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
       setIsReady(true);
 
       const observer = new ResizeObserver(() => {
-        try {
-          if (container.offsetWidth > 0 && container.offsetHeight > 0) {
-            fitAddon.fit();
-            const dims = fitAddon.proposeDimensions();
-            const sid = useSessionStore.getState().activeSessionId;
-            if (dims && sid) {
-              invoke("resize_pty", {
-                sessionId: sid,
-                cols: dims.cols,
-                rows: dims.rows,
-              }).catch(() => {});
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          try {
+            if (container.offsetWidth > 0 && container.offsetHeight > 0) {
+              fitAddon.fit();
+              const dims = fitAddon.proposeDimensions();
+              const sid = useSessionStore.getState().activeSessionId;
+              if (dims && sid) {
+                invoke("resize_pty", {
+                  sessionId: sid,
+                  cols: dims.cols,
+                  rows: dims.rows,
+                }).catch(() => {});
+              }
             }
+          } catch {
+            // ignore
           }
-        } catch {
-          // ignore
-        }
+        }, 100);
       });
       observer.observe(container);
       observerRef.current = observer;
@@ -151,6 +163,7 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
     }
 
     return () => {
+      clearTimeout(resizeTimer);
       if (observerRef.current) {
         observerRef.current.disconnect();
         observerRef.current = null;
