@@ -83,6 +83,9 @@ pub fn run() {
             commands::sessions::subscribe_output,
             commands::sessions::restart_session,
             commands::windows::open_project_window,
+            commands::files::list_markdown_files,
+            commands::files::get_session_diff,
+            commands::files::read_markdown_file,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

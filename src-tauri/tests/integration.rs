@@ -35,6 +35,10 @@ fn make_session(project_id: Uuid, status: SessionStatus) -> Session {
         created_at: "1000000".to_string(),
         last_started_at: Some("1000000".to_string()),
         last_known_pid: None,
+        exit_code: None,
+        exited_at: None,
+        working_dir: "/tmp/myproject".to_string(),
+        base_commit: None,
     }
 }
 

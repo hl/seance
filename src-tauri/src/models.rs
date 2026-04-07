@@ -28,6 +28,22 @@ pub struct Session {
     pub exit_code: Option<i32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exited_at: Option<String>,
+    #[serde(default)]
+    pub working_dir: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_commit: Option<String>,
+}
+
+impl Session {
+    /// Returns the effective working directory, falling back to `project_path`
+    /// when `working_dir` is empty (e.g., from old persisted data).
+    pub fn effective_working_dir<'a>(&'a self, project_path: &'a str) -> &'a str {
+        if self.working_dir.is_empty() {
+            project_path
+        } else {
+            &self.working_dir
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]

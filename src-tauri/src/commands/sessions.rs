@@ -6,6 +6,33 @@ use tauri::ipc::Channel;
 use tauri::Emitter;
 use uuid::Uuid;
 
+/// Run `git rev-parse HEAD` in the given directory and return the SHA if it
+/// looks valid (40-char hex). Returns None for non-git dirs or unexpected output.
+/// Public alias for use by the hook server.
+pub fn resolve_base_commit_for_dir(dir: &str) -> Option<String> {
+    resolve_base_commit(dir)
+}
+
+fn resolve_base_commit(dir: &str) -> Option<String> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .current_dir(dir)
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let sha = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    // Validate 40-char hex SHA to prevent argument injection
+    if sha.len() == 40 && sha.chars().all(|c| c.is_ascii_hexdigit()) {
+        Some(sha)
+    } else {
+        None
+    }
+}
+
 /// Helper: current timestamp as epoch seconds string (same as projects.rs).
 fn timestamp_now() -> String {
     let duration = std::time::SystemTime::now()
@@ -76,6 +103,9 @@ pub async fn create_session(
     let pid = handle.pid;
     let now = timestamp_now();
 
+    // Record the base commit before building the session model.
+    let base_commit = resolve_base_commit(&project_dir);
+
     // Build the session model.
     let session = Session {
         id: session_id,
@@ -89,6 +119,8 @@ pub async fn create_session(
         last_known_pid: pid,
         exit_code: None,
         exited_at: None,
+        working_dir: project_dir.clone(),
+        base_commit,
     };
 
     // Store the session handle.
@@ -283,8 +315,8 @@ pub async fn restart_session(
     state: tauri::State<'_, Arc<AppState>>,
     session_id: Uuid,
 ) -> Result<Session, String> {
-    // Read session metadata.
-    let (project_id, task, generated_name) = {
+    // Read session metadata (including working_dir for base_commit resolution).
+    let (project_id, task, generated_name, session_working_dir) = {
         let sessions = state.sessions.read().await;
         let session = sessions
             .get(&session_id)
@@ -293,6 +325,7 @@ pub async fn restart_session(
             session.project_id,
             session.task.clone(),
             session.generated_name.clone(),
+            session.working_dir.clone(),
         )
     };
 
@@ -341,6 +374,15 @@ pub async fn restart_session(
     let pid = handle.pid;
     let now = timestamp_now();
 
+    // Re-record base_commit from the session's current working_dir (not project_dir —
+    // it may have been updated via hook server).
+    let effective_dir = if session_working_dir.is_empty() {
+        &project_dir
+    } else {
+        &session_working_dir
+    };
+    let base_commit = resolve_base_commit(effective_dir);
+
     // Update session metadata.
     let session = {
         let mut sessions = state.sessions.write().await;
@@ -351,6 +393,7 @@ pub async fn restart_session(
         session.last_message = None;
         session.last_started_at = Some(now);
         session.last_known_pid = pid;
+        session.base_commit = base_commit;
         session.clone()
     };
 
