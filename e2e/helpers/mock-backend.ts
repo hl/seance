@@ -58,6 +58,8 @@ export function makeSession(
     last_known_pid: overrides.last_known_pid ?? null,
     exit_code: overrides.exit_code ?? null,
     exited_at: overrides.exited_at ?? null,
+    working_dir: overrides.working_dir ?? `/test/project-${sessionCounter}`,
+    base_commit: overrides.base_commit ?? null,
   };
 }
 
@@ -182,6 +184,7 @@ export class MockBackend {
 
                 case "create_session": {
                   const id = crypto.randomUUID();
+                  const p = projects.get(args?.projectId ?? "");
                   const session = {
                     id,
                     project_id: args?.projectId ?? "",
@@ -194,6 +197,8 @@ export class MockBackend {
                     last_known_pid: 12345,
                     exit_code: null,
                     exited_at: null,
+                    working_dir: p?.path ?? "/test/unknown",
+                    base_commit: null,
                   };
                   sessions.set(id, session);
                   return Promise.resolve(session);
@@ -227,10 +232,20 @@ export class MockBackend {
                     s.last_started_at = String(Math.floor(Date.now() / 1000));
                     s.exit_code = null;
                     s.exited_at = null;
+                    s.base_commit = null;
                     return Promise.resolve({ ...s });
                   }
                   return Promise.reject("Session not found");
                 }
+
+                case "list_markdown_files":
+                  return Promise.resolve(["README.md", "docs/guide.md"]);
+
+                case "get_session_diff":
+                  return Promise.resolve({ kind: "no_changes" });
+
+                case "read_markdown_file":
+                  return Promise.resolve("# Mock Markdown\n\nThis is mock content.");
 
                 case "send_input":
                 case "resize_pty":
