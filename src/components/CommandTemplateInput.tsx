@@ -54,6 +54,10 @@ const CommandTemplateInput: FC<CommandTemplateInputProps> = ({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="e.g. claude --name {{session_name}} --task {{task}}"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          data-gramm="false"
           className={`w-full rounded-md border bg-surface px-3 py-2 font-mono text-sm text-text placeholder-text-placeholder focus:outline-none focus:ring-1 ${
             isEmpty
               ? "border-red-500/50 focus:ring-red-500/50"
