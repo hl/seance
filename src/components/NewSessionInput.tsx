@@ -116,6 +116,9 @@ const NewSessionInput: FC<NewSessionInputProps> = ({ projectId, onDone }) => {
             onKeyDown={handleKeyDown}
             placeholder="task name (e.g. fix auth bug)"
             disabled={creating}
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             className="w-full rounded border border-border-input bg-surface px-2 py-1 text-sm text-text placeholder-text-placeholder outline-none focus:border-border-focus disabled:opacity-50"
             aria-label="New session task name"
             data-testid="new-session-input"
