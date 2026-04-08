@@ -71,6 +71,10 @@ jobs:
 
             app "Séance.app"
 
+            postflight do
+              system_command "/usr/bin/xattr", args: ["-cr", staged_path/"Séance.app"]
+            end
+
             zap trash: [
               "~/Library/Application Support/com.seance.app",
               "~/Library/Caches/com.seance.app",
