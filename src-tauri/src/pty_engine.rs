@@ -116,6 +116,10 @@ pub fn spawn_session(
     cmd.arg(command_line);
     cmd.cwd(working_dir);
 
+    // Tell the child process it's running in a 256-color terminal.
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+
     // Set Séance environment variables for the hook system.
     cmd.env("SEANCE_SESSION_ID", session_id.to_string());
     cmd.env("SEANCE_HOOK_PORT", hook_port.to_string());
