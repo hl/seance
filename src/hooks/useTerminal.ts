@@ -108,15 +108,29 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
       }
 
       term.attachCustomKeyEventHandler((ev: KeyboardEvent) => {
-        if (
-          ev.metaKey &&
-          ev.key >= "1" &&
-          ev.key <= "9" &&
-          ev.type === "keydown"
-        ) {
+        if (ev.type !== "keydown") return true;
+
+        // Cmd+Shift+1/2/3 → switch tabs (must check before Cmd+1-9)
+        if (ev.metaKey && ev.shiftKey) {
+          const tabMap: Record<string, "terminal" | "markdown" | "diff"> = {
+            Digit1: "terminal",
+            Digit2: "markdown",
+            Digit3: "diff",
+          };
+          const tab = tabMap[ev.code];
+          if (tab) {
+            const sid = useSessionStore.getState().activeSessionId;
+            if (sid) useSessionStore.getState().setActiveTab(sid, tab);
+            return false;
+          }
+        }
+
+        // Cmd+1-9 → switch sessions
+        if (ev.metaKey && ev.key >= "1" && ev.key <= "9") {
           useSessionStore.getState().switchToIndex(parseInt(ev.key, 10) - 1);
           return false;
         }
+
         return true;
       });
 

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -80,6 +81,110 @@
 
     --color-status-done: #7a6e90;
     --color-status-exited: #5a4e6e;
+  }
+}
+
+/* diff2html layout fix: make code lines fill available width */
+.diff2html-wrapper .d2h-code-line {
+  width: 100%;
+}
+.diff2html-wrapper .d2h-code-line-ctn {
+  width: 100%;
+}
+
+/* diff2html dark mode overrides */
+.dark .diff2html-wrapper {
+  /* File headers */
+  & .d2h-file-header {
+    background-color: #1a1028;
+    border-color: #2d2340;
+    color: #f0eaf5;
+  }
+  & .d2h-file-name {
+    color: #f0eaf5;
+  }
+  & .d2h-tag {
+    background-color: #2d2340;
+    border-color: #3d3358;
+    color: #b0a4c4;
+  }
+
+  /* Code content area */
+  & .d2h-code-line,
+  & .d2h-code-side-line {
+    background-color: #0f0a14;
+    color: #f0eaf5;
+    border-color: #2d2340;
+  }
+  & .d2h-code-line-ctn {
+    color: #f0eaf5;
+  }
+
+  /* Line numbers */
+  & .d2h-code-linenumber {
+    background-color: #1a1028;
+    border-color: #2d2340;
+    color: #7a6e90;
+  }
+
+  /* Addition lines */
+  & .d2h-ins {
+    background-color: #122117;
+    border-color: #1a3a24;
+  }
+  & .d2h-ins .d2h-code-line-ctn {
+    background-color: #122117;
+  }
+  & .d2h-ins .d2h-code-linenumber {
+    background-color: #1a3a24;
+    border-color: #1a3a24;
+    color: #6bc77a;
+  }
+  & ins.d2h-change {
+    background-color: #1e4a2a;
+    color: #f0eaf5;
+  }
+
+  /* Deletion lines */
+  & .d2h-del {
+    background-color: #2a1118;
+    border-color: #3a1a22;
+  }
+  & .d2h-del .d2h-code-line-ctn {
+    background-color: #2a1118;
+  }
+  & .d2h-del .d2h-code-linenumber {
+    background-color: #3a1a22;
+    border-color: #3a1a22;
+    color: #d47a7a;
+  }
+  & del.d2h-change {
+    background-color: #4a1a22;
+    color: #f0eaf5;
+  }
+
+  /* Info/hunk headers */
+  & .d2h-info {
+    background-color: #1a1028;
+    border-color: #2d2340;
+    color: #7a6e90;
+  }
+
+  /* Empty placeholder lines */
+  & .d2h-code-line.d2h-cntx,
+  & .d2h-cntx {
+    background-color: #0f0a14;
+  }
+  & .d2h-cntx .d2h-code-linenumber {
+    background-color: #1a1028;
+  }
+
+  /* File wrapper borders */
+  & .d2h-file-wrapper {
+    border-color: #2d2340;
+  }
+  & .d2h-file-diff {
+    border-color: #2d2340;
   }
 }
 

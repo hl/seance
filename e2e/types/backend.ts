@@ -47,7 +47,16 @@ export interface Session {
   last_known_pid: number | null;
   exit_code: number | null;
   exited_at: string | null;
+  working_dir: string;
+  base_commit: string | null;
 }
+
+/** Mirrors: commands::files::DiffResult */
+export type DiffResult =
+  | { kind: "ok"; diff_text: string; changed_files: string[]; fallback_used: boolean }
+  | { kind: "no_changes" }
+  | { kind: "not_git_repo" }
+  | { kind: "error"; message: string };
 
 // --- Command responses (src-tauri/src/commands/projects.rs) ---
 
@@ -88,6 +97,9 @@ export interface TauriCommands {
   get_app_settings: { args: Record<string, never>; response: AppSettings };
   update_app_settings: { args: { settings: AppSettings }; response: null };
   open_project_window: { args: { projectId: string; projectName: string }; response: null };
+  list_markdown_files: { args: { sessionId: string }; response: string[] };
+  get_session_diff: { args: { sessionId: string }; response: DiffResult };
+  read_markdown_file: { args: { sessionId: string; relativePath: string }; response: string };
 }
 
 export type CommandName = keyof TauriCommands;
