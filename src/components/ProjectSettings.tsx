@@ -73,12 +73,12 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
   }, [projectId, commandTemplate, onClose, onSaved]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" role="dialog" aria-modal="true" aria-labelledby="project-settings-title">
       <div className="mx-4 w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div>
-            <h2 className="text-base font-semibold text-text">
+            <h2 id="project-settings-title" className="text-base font-semibold text-text">
               Project Settings
             </h2>
             <p className="mt-0.5 text-xs text-text-muted">{projectName}</p>

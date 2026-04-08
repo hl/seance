@@ -13,7 +13,7 @@ const TerminalView: FC = () => {
     if (!s.activeSessionId) return null;
     return s.sessions.get(s.activeSessionId)?.lastStartedAt ?? null;
   });
-  const { terminalRef, writeData, reset, fit, fitAndGetDimensions, onData, isReady } =
+  const { terminalRef, writeData, reset, fitAndGetDimensions, onData, isReady } =
     useTerminal(activeSessionId);
   const channelRef = useRef<Channel<number[]> | null>(null);
   const [subscribeError, setSubscribeError] = useState(false);
@@ -68,7 +68,7 @@ const TerminalView: FC = () => {
       cancelled = true;
       channelRef.current = null;
     };
-  }, [activeSessionId, activeSessionStartedAt, isReady, writeData, reset, fit, fitAndGetDimensions]);
+  }, [activeSessionId, activeSessionStartedAt, isReady, writeData, reset, fitAndGetDimensions]);
 
   // Forward terminal input to PTY
   useEffect(() => {

@@ -1,8 +1,10 @@
 use crate::models::SessionStatus;
 use crate::state::AppState;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Request, State},
     http::StatusCode,
+    middleware::{self, Next},
+    response::Response,
     routing::post,
     Json, Router,
 };
@@ -10,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::Emitter;
 use tokio::net::TcpListener;
+use tokio::sync::watch;
 use uuid::Uuid;
 
 /// Shared state passed to all axum handlers.
@@ -17,6 +20,7 @@ use uuid::Uuid;
 struct HookState {
     app_state: Arc<AppState>,
     app_handle: tauri::AppHandle,
+    hook_token: String,
 }
 
 /// Request body for status update POSTs from agent hooks.
@@ -55,15 +59,23 @@ struct SessionWorkingDirEvent {
 /// Binds to `127.0.0.1:{port}`. On bind failure, logs the error and returns
 /// without crashing — the app continues to function, just without hook-based
 /// status updates.
-pub async fn start_hook_server(state: Arc<AppState>, app_handle: tauri::AppHandle, port: u16) {
+pub async fn start_hook_server(
+    state: Arc<AppState>,
+    app_handle: tauri::AppHandle,
+    port: u16,
+    mut shutdown_rx: watch::Receiver<()>,
+) {
+    let token = state.hook_token.clone();
     let hook_state = HookState {
         app_state: state,
         app_handle,
+        hook_token: token,
     };
 
     let app = Router::new()
         .route("/session/{session_id}/status", post(handle_status))
         .route("/session/{session_id}/working_dir", post(handle_working_dir))
+        .layer(middleware::from_fn_with_state(hook_state.clone(), auth_middleware))
         .with_state(hook_state);
 
     let addr = format!("127.0.0.1:{}", port);
@@ -77,8 +89,34 @@ pub async fn start_hook_server(state: Arc<AppState>, app_handle: tauri::AppHandl
 
     eprintln!("Hook server listening on {}", addr);
 
-    if let Err(e) = axum::serve(listener, app).await {
+    let server = axum::serve(listener, app)
+        .with_graceful_shutdown(async move {
+            let _ = shutdown_rx.changed().await;
+        });
+
+    if let Err(e) = server.await {
         eprintln!("Hook server error: {}", e);
+    }
+
+    eprintln!("Hook server on port {} shut down", port);
+}
+
+/// Middleware that validates the `Authorization: Bearer <token>` header.
+async fn auth_middleware(
+    State(hook_state): State<HookState>,
+    req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let auth_header = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok());
+
+    match auth_header {
+        Some(value) if value.strip_prefix("Bearer ").map_or(false, |t| t == hook_state.hook_token) => {
+            Ok(next.run(req).await)
+        }
+        _ => Err(StatusCode::UNAUTHORIZED),
     }
 }
 

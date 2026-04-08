@@ -30,10 +30,11 @@ function App() {
 
     if (projectId && projectName) {
       setWindowProject(projectId);
+      // URLSearchParams.get() already decodes, no need for decodeURIComponent
       setActiveProject(
         projectId,
-        decodeURIComponent(projectName),
-        projectPath ? decodeURIComponent(projectPath) : undefined,
+        projectName,
+        projectPath ?? undefined,
       );
       // Set view directly to session-view for project windows
       useAppStore.setState({ currentView: "session-view" });

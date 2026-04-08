@@ -33,13 +33,7 @@ fn resolve_base_commit(dir: &str) -> Option<String> {
     }
 }
 
-/// Helper: current timestamp as epoch seconds string (same as projects.rs).
-fn timestamp_now() -> String {
-    let duration = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    format!("{}", duration.as_secs())
-}
+use crate::state::timestamp_now;
 
 /// List all sessions for a given project.
 #[tauri::command]
@@ -94,11 +88,12 @@ pub async fn create_session(
         let settings = state.settings.read().await;
         settings.hook_port
     };
+    let hook_token = &state.hook_token;
 
     // Spawn the PTY. No Channel yet — the Terminal component will call
     // subscribe_output to attach a Channel after the session is created.
     let (handle, child) =
-        pty_engine::spawn_session(session_id, &command_line, &project_dir, hook_port)?;
+        pty_engine::spawn_session(session_id, &command_line, &project_dir, hook_port, hook_token)?;
 
     let pid = handle.pid;
     let now = timestamp_now();
@@ -139,7 +134,7 @@ pub async fn create_session(
     // Start exit watcher thread.
     let state_clone = state.inner().clone();
     let app_handle = state.app_handle.read().await.clone()
-        .expect("AppHandle not available");
+        .ok_or_else(|| "AppHandle not available".to_string())?;
     spawn_exit_watcher(session_id, child, state_clone, app_handle);
 
     Ok(session)
@@ -157,6 +152,12 @@ pub async fn delete_session(
         if let Some(mut handle) = handles.remove(&session_id) {
             let _ = handle.killer.kill();
         }
+    }
+
+    // Clean up exited scrollback snapshot
+    {
+        let mut exited = state.exited_scrollback.write().await;
+        exited.remove(&session_id);
     }
 
     // Remove from session metadata
@@ -281,13 +282,17 @@ pub async fn get_scrollback(
     state: tauri::State<'_, Arc<AppState>>,
     session_id: Uuid,
 ) -> Result<Vec<u8>, String> {
-    let handles = state.session_handles.read().await;
-    let handle = handles
-        .get(&session_id)
-        .ok_or_else(|| format!("No active session handle for {}", session_id))?;
-
-    let sb = handle.scrollback.lock().map_err(|e| e.to_string())?;
-    Ok(sb.snapshot())
+    // Try the live handle first.
+    {
+        let handles = state.session_handles.read().await;
+        if let Some(handle) = handles.get(&session_id) {
+            let sb = handle.scrollback.lock().map_err(|e| e.to_string())?;
+            return Ok(sb.snapshot());
+        }
+    }
+    // Fall back to the exited scrollback snapshot.
+    let exited = state.exited_scrollback.read().await;
+    Ok(exited.get(&session_id).cloned().unwrap_or_default())
 }
 
 /// Atomically snapshot the scrollback buffer and attach a new output Channel.
@@ -299,13 +304,17 @@ pub async fn subscribe_output(
     session_id: Uuid,
     on_output: Channel<Vec<u8>>,
 ) -> Result<Vec<u8>, String> {
-    let mut handles = state.session_handles.write().await;
-    let handle = handles
-        .get_mut(&session_id)
-        .ok_or_else(|| format!("No active session handle for {}", session_id))?;
-
-    let snapshot = handle.subscribe(on_output);
-    Ok(snapshot)
+    // Try the live handle first.
+    {
+        let mut handles = state.session_handles.write().await;
+        if let Some(handle) = handles.get_mut(&session_id) {
+            let snapshot = handle.subscribe(on_output);
+            return Ok(snapshot);
+        }
+    }
+    // For exited sessions, return the snapshot (no live channel needed).
+    let exited = state.exited_scrollback.read().await;
+    Ok(exited.get(&session_id).cloned().unwrap_or_default())
 }
 
 /// Restart an exited session — reset scrollback, re-spawn with the same
@@ -321,6 +330,9 @@ pub async fn restart_session(
         let session = sessions
             .get(&session_id)
             .ok_or_else(|| format!("Session {} not found", session_id))?;
+        if !matches!(session.status, SessionStatus::Exited | SessionStatus::Done | SessionStatus::Error) {
+            return Err("Session is still running".to_string());
+        }
         (
             session.project_id,
             session.task.clone(),
@@ -350,6 +362,7 @@ pub async fn restart_session(
         let settings = state.settings.read().await;
         settings.hook_port
     };
+    let hook_token = &state.hook_token;
 
     // Spawn a new PTY first, before removing old handle. This way if
     // spawn fails, the old handle remains in the map and can be cleaned up.
@@ -358,9 +371,10 @@ pub async fn restart_session(
         &command_line,
         &project_dir,
         hook_port,
+        hook_token,
     )?;
 
-    // Clean up old handle now that the new spawn succeeded.
+    // Clean up old handle and exited scrollback now that the new spawn succeeded.
     {
         let mut handles = state.session_handles.write().await;
         if let Some(mut old_handle) = handles.remove(&session_id) {
@@ -369,6 +383,10 @@ pub async fn restart_session(
             }
             let _ = old_handle.killer.kill();
         }
+    }
+    {
+        let mut exited = state.exited_scrollback.write().await;
+        exited.remove(&session_id);
     }
 
     let pid = handle.pid;
@@ -393,6 +411,8 @@ pub async fn restart_session(
         session.last_message = None;
         session.last_started_at = Some(now);
         session.last_known_pid = pid;
+        session.exit_code = None;
+        session.exited_at = None;
         session.base_commit = base_commit;
         session.clone()
     };
@@ -408,7 +428,7 @@ pub async fn restart_session(
     // Start exit watcher.
     let state_clone = state.inner().clone();
     let app_handle = state.app_handle.read().await.clone()
-        .expect("AppHandle not available");
+        .ok_or_else(|| "AppHandle not available".to_string())?;
     spawn_exit_watcher(session_id, child, state_clone, app_handle);
 
     Ok(session)
@@ -422,7 +442,7 @@ fn spawn_exit_watcher(
     state: Arc<AppState>,
     app_handle: tauri::AppHandle,
 ) {
-    std::thread::Builder::new()
+    let _ = std::thread::Builder::new()
         .name(format!("exit-watcher-{}", &session_id.to_string()[..8]))
         .spawn(move || {
             // Block until the child exits.
@@ -452,6 +472,21 @@ fn spawn_exit_watcher(
                                 None
                             }
                         };
+
+                        // Snapshot scrollback and release the heavy SessionHandle.
+                        {
+                            let mut handles = state.session_handles.write().await;
+                            if let Some(handle) = handles.remove(&session_id) {
+                                let snapshot = {
+                                    let sb = handle.scrollback.lock()
+                                        .unwrap_or_else(|e| e.into_inner());
+                                    sb.snapshot()
+                                };
+                                state.exited_scrollback.write().await
+                                    .insert(session_id, snapshot);
+                            }
+                        }
+
                         let _ = state.persist().await;
 
                         // Emit session-exited event to the frontend.
@@ -481,6 +516,5 @@ fn spawn_exit_watcher(
                     );
                 }
             }
-        })
-        .expect("Failed to spawn exit watcher thread");
+        });
 }

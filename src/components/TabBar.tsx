@@ -21,6 +21,7 @@ const TabBar: FC = () => {
     <div className="flex border-b border-border bg-bg-secondary shrink-0">
       {TABS.map((tab) => (
         <button
+          type="button"
           key={tab.id}
           onClick={() => setActiveTab(activeSessionId, tab.id)}
           className={`px-4 py-1.5 text-xs font-medium transition-colors ${

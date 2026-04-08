@@ -78,20 +78,23 @@ pub async fn get_session_diff(
     state: tauri::State<'_, Arc<AppState>>,
     session_id: Uuid,
 ) -> Result<DiffResult, String> {
-    let (working_dir, project_path, base_commit) = {
+    let (working_dir, project_id, base_commit) = {
         let sessions = state.sessions.read().await;
         let session = sessions
             .get(&session_id)
             .ok_or_else(|| format!("Session {} not found", session_id))?;
-        let projects = state.projects.read().await;
-        let project = projects
-            .get(&session.project_id)
-            .ok_or_else(|| format!("Project {} not found", session.project_id))?;
         (
             session.working_dir.clone(),
-            project.path.clone(),
+            session.project_id,
             session.base_commit.clone(),
         )
+    };
+    let project_path = {
+        let projects = state.projects.read().await;
+        let project = projects
+            .get(&project_id)
+            .ok_or_else(|| format!("Project {} not found", project_id))?;
+        project.path.clone()
     };
 
     let effective_dir = if working_dir.is_empty() {
@@ -200,15 +203,21 @@ async fn resolve_session_dirs(
     state: &tauri::State<'_, Arc<AppState>>,
     session_id: Uuid,
 ) -> Result<(String, String), String> {
-    let sessions = state.sessions.read().await;
-    let session = sessions
-        .get(&session_id)
-        .ok_or_else(|| format!("Session {} not found", session_id))?;
-    let projects = state.projects.read().await;
-    let project = projects
-        .get(&session.project_id)
-        .ok_or_else(|| format!("Project {} not found", session.project_id))?;
-    Ok((session.working_dir.clone(), project.path.clone()))
+    let (working_dir, project_id) = {
+        let sessions = state.sessions.read().await;
+        let session = sessions
+            .get(&session_id)
+            .ok_or_else(|| format!("Session {} not found", session_id))?;
+        (session.working_dir.clone(), session.project_id)
+    };
+    let project_path = {
+        let projects = state.projects.read().await;
+        let project = projects
+            .get(&project_id)
+            .ok_or_else(|| format!("Project {} not found", project_id))?;
+        project.path.clone()
+    };
+    Ok((working_dir, project_path))
 }
 
 fn is_git_repo(dir: &str) -> bool {

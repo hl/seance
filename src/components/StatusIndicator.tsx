@@ -23,6 +23,8 @@ const StatusIndicator: FC<StatusIndicatorProps> = ({ status }) => {
   return (
     <span
       className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${config.color} ${config.pulse ? "animate-pulse-status" : ""}`}
+      role="status"
+      aria-label={status}
       title={status}
       data-testid="status-indicator"
       data-status={status}

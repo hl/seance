@@ -1,4 +1,4 @@
-import { type FC, useState, useEffect, useRef } from "react";
+import { type FC, useState, useEffect, useRef, useMemo } from "react";
 import { html } from "diff2html";
 import DOMPurify from "dompurify";
 import "diff2html/bundles/css/diff2html.min.css";
@@ -99,11 +99,13 @@ const DiffViewer: FC<DiffViewerProps> = ({ sessionId, isActive }) => {
 
   // diffResult.kind === "ok"
   const { diff_text, changed_files, fallback_used } = diffResult;
-  const rawHtml = html(diff_text, {
-    drawFileList: false,
-    outputFormat: "line-by-line",
-  });
-  const safeHtml = DOMPurify.sanitize(rawHtml);
+  const safeHtml = useMemo(() => {
+    const rawHtml = html(diff_text, {
+      drawFileList: false,
+      outputFormat: "line-by-line",
+    });
+    return DOMPurify.sanitize(rawHtml);
+  }, [diff_text]);
 
   return (
     <div className="flex h-full flex-col bg-bg">
@@ -112,6 +114,7 @@ const DiffViewer: FC<DiffViewerProps> = ({ sessionId, isActive }) => {
         <div className="flex flex-1 items-center gap-1 overflow-x-auto">
           {changed_files.map((file, i) => (
             <button
+              type="button"
               key={file}
               onClick={() => handleFileClick(i)}
               className={`shrink-0 rounded px-2 py-0.5 text-xs transition-colors ${

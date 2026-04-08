@@ -1,4 +1,4 @@
-import { type FC, useState } from "react";
+import { type FC, useState, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -26,8 +26,9 @@ const MarkdownBrowser: FC<MarkdownBrowserProps> = ({
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  const sortedFiles = [...files].sort((a, b) =>
-    a.localeCompare(b, undefined, { sensitivity: "base" }),
+  const sortedFiles = useMemo(
+    () => [...files].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })),
+    [files],
   );
 
   return (

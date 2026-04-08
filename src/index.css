@@ -37,6 +37,9 @@
 
   --color-interactive-hover: #e8dfd4;
 
+  --color-bg-secondary: #f3ede4;
+  --color-bg-hover: #ebe3d6;
+
   --color-status-done: #8a7d96;
   --color-status-exited: #a89cb4;
 
@@ -78,6 +81,9 @@
     --color-btn-primary-bg-hover: #ffffff;
 
     --color-interactive-hover: #241838;
+
+    --color-bg-secondary: #1a1028;
+    --color-bg-hover: #241838;
 
     --color-status-done: #7a6e90;
     --color-status-exited: #5a4e6e;

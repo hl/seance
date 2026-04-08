@@ -23,15 +23,13 @@ export function useDiff(sessionId: string, isActive: boolean): UseDiffReturn {
 
   const notGitRepoRef = useRef(false);
   const lastFetchTimeRef = useRef(0);
-  const prevSessionIdRef = useRef(sessionId);
 
-  // Reset the not-git-repo flag when sessionId changes
-  if (prevSessionIdRef.current !== sessionId) {
-    prevSessionIdRef.current = sessionId;
+  // Reset state when sessionId changes
+  useEffect(() => {
     notGitRepoRef.current = false;
     setDiffResult(null);
     setLastUpdated(null);
-  }
+  }, [sessionId]);
 
   const fetchDiff = useCallback(async () => {
     const now = Date.now();

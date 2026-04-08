@@ -51,7 +51,24 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
   const fitAddonRef = useRef<FitAddon | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
   const initializedRef = useRef(false);
+  const fontSizeRef = useRef(14);
   const [isReady, setIsReady] = useState(false);
+
+  // Fetch persisted terminal font size once.
+  useEffect(() => {
+    invoke<{ terminal_font_size?: number }>("get_app_settings")
+      .then((settings) => {
+        if (settings.terminal_font_size) {
+          fontSizeRef.current = settings.terminal_font_size;
+          // If terminal already initialized, apply the font size.
+          if (termRef.current) {
+            termRef.current.options.fontSize = settings.terminal_font_size;
+            fitAddonRef.current?.fit();
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Create terminal once when container is available. Never dispose on
   // session switch — just reset() the content. This avoids xterm.js
@@ -70,7 +87,7 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
       const term = new Terminal({
         cursorBlink: true,
         cursorStyle: "bar",
-        fontSize: 14,
+        fontSize: fontSizeRef.current,
         fontFamily:
           "'SF Mono', 'Cascadia Code', 'Fira Code', Menlo, monospace",
         theme: getTerminalTheme(terminalTheme, resolved),
@@ -81,7 +98,9 @@ export function useTerminal(activeSessionId: string | null): UseTerminalReturn {
       term.loadAddon(fitAddon);
       term.loadAddon(
         new WebLinksAddon((_event, uri) => {
-          openUrl(uri).catch(() => {});
+          if (uri.startsWith("http://") || uri.startsWith("https://")) {
+            openUrl(uri).catch(() => {});
+          }
         }),
       );
       term.open(container);

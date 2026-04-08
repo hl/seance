@@ -60,10 +60,10 @@ export function useMarkdownFiles(
     };
   }, [sessionId, isActive]);
 
-  // Detect file deletion
+  // Detect file deletion or reappearance
   useEffect(() => {
-    if (selectedFile && files.length > 0 && !files.includes(selectedFile)) {
-      setFileDeleted(true);
+    if (selectedFile) {
+      setFileDeleted(!files.includes(selectedFile));
     }
   }, [files, selectedFile]);
 

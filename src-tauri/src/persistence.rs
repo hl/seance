@@ -1,6 +1,12 @@
 use crate::models::PersistedState;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
+
+static SAVE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub struct Persistence {
     file_path: PathBuf,
@@ -23,8 +29,18 @@ impl Persistence {
 
     pub fn save(&self, state: &PersistedState) -> Result<(), String> {
         let json = serde_json::to_string_pretty(state).map_err(|e| e.to_string())?;
-        let tmp_path = self.file_path.with_extension("json.tmp");
+        // Use a unique tmp filename to avoid races between concurrent save() calls.
+        let seq = SAVE_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let tmp_path = self
+            .file_path
+            .with_extension(format!("json.tmp.{}.{}", std::process::id(), seq));
         fs::write(&tmp_path, &json).map_err(|e| format!("Failed to write temp file: {}", e))?;
+        // Restrict permissions to owner-only (0600) since the file contains command templates.
+        #[cfg(unix)]
+        {
+            let perms = fs::Permissions::from_mode(0o600);
+            fs::set_permissions(&tmp_path, perms).ok();
+        }
         fs::rename(&tmp_path, &self.file_path)
             .map_err(|e| format!("Failed to rename temp file: {}", e))?;
         Ok(())
@@ -34,7 +50,7 @@ impl Persistence {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{AppSettings, Project};
+    use crate::models::Project;
     use tempfile::tempdir;
     use uuid::Uuid;
 

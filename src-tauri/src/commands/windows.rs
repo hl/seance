@@ -32,7 +32,7 @@ pub async fn open_project_window(
         projects
             .get(&uuid)
             .map(|p| p.path.clone())
-            .unwrap_or_default()
+            .ok_or_else(|| format!("Project {} not found", project_id))?
     };
 
     // Build the URL with query params for the frontend to read.

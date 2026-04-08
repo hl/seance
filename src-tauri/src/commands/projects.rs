@@ -71,7 +71,7 @@ pub async fn add_project(
         id: Uuid::new_v4(),
         path,
         command_template: String::new(),
-        created_at: chrono_now(),
+        created_at: timestamp_now(),
     };
 
     {
@@ -95,7 +95,34 @@ pub async fn remove_project(
         }
     }
 
-    // Remove all sessions for this project
+    // Collect session IDs belonging to this project, then kill their PTYs.
+    let session_ids: Vec<Uuid> = {
+        let sessions = state.sessions.read().await;
+        sessions
+            .values()
+            .filter(|s| s.project_id == id)
+            .map(|s| s.id)
+            .collect()
+    };
+
+    {
+        let mut handles = state.session_handles.write().await;
+        for sid in &session_ids {
+            if let Some(mut handle) = handles.remove(sid) {
+                let _ = handle.killer.kill();
+            }
+        }
+    }
+
+    // Clean up exited scrollback snapshots for these sessions.
+    {
+        let mut exited = state.exited_scrollback.write().await;
+        for sid in &session_ids {
+            exited.remove(sid);
+        }
+    }
+
+    // Remove all sessions for this project.
     {
         let mut sessions = state.sessions.write().await;
         sessions.retain(|_, s| s.project_id != id);
@@ -123,10 +150,4 @@ pub async fn update_project_settings(
     Ok(())
 }
 
-fn chrono_now() -> String {
-    // Simple ISO 8601 timestamp without external chrono dependency
-    let duration = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    format!("{}", duration.as_secs())
-}
+use crate::state::timestamp_now;

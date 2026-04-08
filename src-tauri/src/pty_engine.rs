@@ -62,7 +62,15 @@ impl SessionHandle {
         &mut self,
         channel: tauri::ipc::Channel<Vec<u8>>,
     ) -> Vec<u8> {
-        // Abort the old forwarder if present.
+        // Create a new mpsc channel and swap the sender FIRST, so the reader
+        // thread always has a live receiver to send into. This prevents a race
+        // where aborting the old forwarder drops the old receiver before the
+        // new sender is installed, which would cause the reader thread to exit.
+        let (new_tx, new_rx) = mpsc::channel::<Vec<u8>>(256);
+        self.output_tx.swap(new_tx);
+
+        // Now safe to abort the old forwarder — the reader thread is already
+        // using the new sender/receiver pair.
         if let Some(handle) = self.forwarder_abort.take() {
             handle.abort();
         }
@@ -72,11 +80,6 @@ impl SessionHandle {
             let sb = self.scrollback.lock().unwrap_or_else(|e| e.into_inner());
             sb.snapshot()
         };
-
-        // Create a new mpsc channel and swap the sender atomically.
-        // The reader thread will pick up the new sender on its next send.
-        let (new_tx, new_rx) = mpsc::channel::<Vec<u8>>(256);
-        self.output_tx.swap(new_tx);
 
         // Start a new forwarder task.
         let handle = spawn_forwarder(new_rx, channel);
@@ -94,6 +97,7 @@ pub fn spawn_session(
     command_line: &str,
     working_dir: &str,
     hook_port: u16,
+    hook_token: &str,
 ) -> Result<(SessionHandle, Box<dyn Child + Send + Sync>), String> {
     let pty_system = native_pty_system();
     let pair = pty_system
@@ -115,6 +119,7 @@ pub fn spawn_session(
     // Set Séance environment variables for the hook system.
     cmd.env("SEANCE_SESSION_ID", session_id.to_string());
     cmd.env("SEANCE_HOOK_PORT", hook_port.to_string());
+    cmd.env("SEANCE_HOOK_TOKEN", hook_token);
     cmd.env(
         "SEANCE_HOOK_URL",
         format!("http://127.0.0.1:{}/session/{}/status", hook_port, session_id),
@@ -218,8 +223,8 @@ fn reader_loop(
                 }
             }
             Err(e) => {
-                // EIO is expected on macOS when the child exits.
-                if e.raw_os_error() == Some(libc::EIO) {
+                // EIO (5) is expected on macOS/Linux when the child exits.
+                if e.raw_os_error() == Some(5) {
                     if !batch.is_empty() {
                         let _ = flush_batch(&tx, &scrollback, &mut batch);
                     }
@@ -262,10 +267,14 @@ fn spawn_forwarder(
 ) -> tauri::async_runtime::JoinHandle<()> {
     tauri::async_runtime::spawn(async move {
         while let Some(data) = rx.recv().await {
-            // If the channel send fails (e.g., webview closed), we just
-            // stop forwarding. The reader thread will continue writing to
-            // scrollback independently.
+            // If the channel send fails (e.g., webview closed), fall back
+            // to draining. We must keep the receiver alive so the reader
+            // thread's blocking_send doesn't fail — the reader also writes
+            // to scrollback, which must continue even without a UI.
             if channel.send(data).is_err() {
+                // Drain until the receiver is swapped out by a new subscribe()
+                // or the session exits (sender dropped).
+                while rx.recv().await.is_some() {}
                 break;
             }
         }

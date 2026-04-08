@@ -79,27 +79,89 @@ pub fn kill_all_sessions(state: &Arc<AppState>) {
     }
 }
 
+/// Get the start time of a process as epoch seconds, or None if unavailable.
+///
+/// Uses `ps -o lstart= -p <pid>` and parses the output. This is portable
+/// across macOS and Linux without needing platform-specific structs.
+fn get_process_start_time(pid: i32) -> Option<u64> {
+    // `ps -o lstart= -p PID` outputs e.g. "Mon Apr  7 12:34:56 2025"
+    // We parse this by delegating to `date` for reliable epoch conversion.
+    let output = std::process::Command::new("ps")
+        .args(["-o", "lstart=", "-p", &pid.to_string()])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let lstart = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if lstart.is_empty() {
+        return None;
+    }
+
+    // Convert to epoch using `date -j -f`  on macOS.
+    let epoch_output = std::process::Command::new("date")
+        .args(["-j", "-f", "%c", &lstart, "+%s"])
+        .output()
+        .ok()?;
+
+    if !epoch_output.status.success() {
+        return None;
+    }
+
+    String::from_utf8_lossy(&epoch_output.stdout)
+        .trim()
+        .parse::<u64>()
+        .ok()
+}
+
 /// Check for orphaned processes from a previous run and kill them.
 ///
 /// Reads all sessions that have a `last_known_pid` set, checks whether each
-/// process is still alive, and kills any that are (they're orphans from a
-/// crash or unclean exit).
+/// process is still alive, and verifies the process start time matches the
+/// session's `last_started_at` to avoid killing recycled PIDs.
 pub fn cleanup_orphaned_processes(state: &Arc<AppState>) {
-    let pids: Vec<i32> = {
+    let candidates: Vec<(i32, Option<u64>)> = {
         let sessions = state.sessions.blocking_read();
         sessions
             .values()
-            .filter_map(|s| s.last_known_pid.and_then(|p| i32::try_from(p).ok()))
+            .filter_map(|s| {
+                let pid = s.last_known_pid.and_then(|p| i32::try_from(p).ok())?;
+                let session_start = s.last_started_at.as_ref()
+                    .and_then(|ts| ts.parse::<u64>().ok());
+                Some((pid, session_start))
+            })
             .collect()
     };
 
-    for pid in pids {
-        unsafe {
-            let alive = libc::kill(pid, 0) == 0;
-            if alive {
-                kill_process_group(pid);
-            }
+    for (pid, session_start) in candidates {
+        let alive = unsafe { libc::kill(pid, 0) == 0 };
+        if !alive {
+            continue;
         }
+
+        // Verify the process actually belongs to us by checking its start time.
+        // If the process started after our session was recorded, it's a recycled PID.
+        if let Some(session_epoch) = session_start {
+            if let Some(proc_epoch) = get_process_start_time(pid) {
+                // Allow 2 seconds of clock skew tolerance.
+                if proc_epoch > session_epoch + 2 {
+                    // Process started after our session — it's a recycled PID, skip it.
+                    continue;
+                }
+            }
+            // If we can't read the process start time, skip to be safe.
+            // Better to leave an orphan than kill an innocent process.
+            else {
+                continue;
+            }
+        } else {
+            // No session start time recorded — skip to be safe.
+            continue;
+        }
+
+        kill_process_group(pid);
     }
 }
 

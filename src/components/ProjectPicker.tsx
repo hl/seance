@@ -112,7 +112,6 @@ const ProjectPicker: FC = () => {
               {projects.map((project) => (
                 <ProjectCard
                   key={project.id}
-                  id={project.id}
                   name={project.name || projectNameFromPath(project.path)}
                   path={project.path}
                   activeSessionCount={project.active_session_count}

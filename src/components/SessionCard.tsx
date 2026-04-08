@@ -140,7 +140,7 @@ const SessionCard: FC<SessionCardProps> = ({
             value={renameValue}
             onChange={(e) => setRenameValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
-            onBlur={onRenameComplete}
+            onBlur={handleRenameSubmit}
             className="min-w-0 flex-1 border border-border-input bg-surface px-1 py-0 text-sm font-medium text-text outline-none focus:ring-1 focus:ring-ring-focus"
           />
         ) : (

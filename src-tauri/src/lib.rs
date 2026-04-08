@@ -1,5 +1,6 @@
+#[cfg(unix)]
 mod cleanup;
-mod commands;
+pub mod commands;
 mod hook_server;
 pub mod identity;
 pub mod models;
@@ -28,6 +29,7 @@ pub fn run() {
             let state = Arc::new(AppState::new(persistence, Some(app.handle().clone())));
 
             // Clean up orphaned processes from a previous crash/unclean exit.
+            #[cfg(unix)]
             cleanup::cleanup_orphaned_processes(&state);
 
             // Read hook port synchronously before spawning the server.
@@ -37,30 +39,35 @@ pub fn run() {
                 state.settings.read().await.hook_port
             });
 
+            let shutdown_rx = state.hook_shutdown_rx.clone();
             let state_clone = state.clone();
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(
-                hook_server::start_hook_server(state_clone, app_handle, hook_port),
+                hook_server::start_hook_server(state_clone, app_handle, hook_port, shutdown_rx),
             );
 
             // Set up signal handler for SIGTERM/SIGINT to kill tracked PIDs.
-            let signal_state = state.clone();
-            std::thread::Builder::new()
-                .name("signal-handler".to_string())
-                .spawn(move || {
-                    use signal_hook::consts::{SIGINT, SIGTERM};
-                    use signal_hook::iterator::Signals;
+            // Unix-only: signal-hook and POSIX signals are not available on Windows.
+            #[cfg(unix)]
+            {
+                let signal_state = state.clone();
+                std::thread::Builder::new()
+                    .name("signal-handler".to_string())
+                    .spawn(move || {
+                        use signal_hook::consts::{SIGINT, SIGTERM};
+                        use signal_hook::iterator::Signals;
 
-                    let mut signals =
-                        Signals::new([SIGTERM, SIGINT]).expect("failed to register signals");
+                        let mut signals =
+                            Signals::new([SIGTERM, SIGINT]).expect("failed to register signals");
 
-                    // Block until we receive a signal.
-                    for _sig in signals.forever() {
-                        cleanup::kill_all_sessions(&signal_state);
-                        std::process::exit(0);
-                    }
-                })
-                .expect("failed to spawn signal handler thread");
+                        // Block until we receive a signal.
+                        for _sig in signals.forever() {
+                            cleanup::kill_all_sessions(&signal_state);
+                            std::process::exit(0);
+                        }
+                    })
+                    .expect("failed to spawn signal handler thread");
+            }
 
             app.manage(state);
             Ok(())
@@ -126,8 +133,11 @@ pub fn run() {
 
         RunEvent::Exit => {
             // App is shutting down — kill all PTY sessions.
-            let state = app_handle.state::<Arc<AppState>>();
-            cleanup::kill_all_sessions(&state);
+            #[cfg(unix)]
+            {
+                let state = app_handle.state::<Arc<AppState>>();
+                cleanup::kill_all_sessions(&state);
+            }
         }
 
         _ => {}

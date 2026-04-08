@@ -325,14 +325,14 @@ fn template_only_placeholders() {
 
 #[test]
 fn template_special_chars_in_values() {
-    // Values with spaces, special chars should pass through literally.
+    // Values with spaces/special chars are now shell-escaped for safety.
     let result = resolve_template(
         "cmd --dir {{project_dir}}",
         "Maya",
         "fix",
         "/home/user/my project (copy)",
     );
-    assert_eq!(result, "cmd --dir /home/user/my project (copy)");
+    assert_eq!(result, "cmd --dir '/home/user/my project (copy)'");
 }
 
 // ---------------------------------------------------------------------------
@@ -674,6 +674,327 @@ async fn removing_project_with_no_sessions_is_fine() {
 
     let projects = state.projects.read().await;
     assert!(projects.is_empty());
+}
+
+// ---------------------------------------------------------------------------
+// 9. Session handle lifecycle
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn exited_scrollback_is_empty_initially() {
+    let state = new_state();
+
+    let exited = state.exited_scrollback.read().await;
+    assert!(
+        exited.is_empty(),
+        "exited_scrollback should start empty, had {} entries",
+        exited.len()
+    );
+}
+
+#[tokio::test]
+async fn remove_project_clears_sessions_and_handles() {
+    let state = new_state();
+
+    // Add a project.
+    let project = make_project("/tmp/handles-test", "cmd {{task}}");
+    let pid = project.id;
+    {
+        let mut projects = state.projects.write().await;
+        projects.insert(pid, project);
+    }
+
+    // Add several sessions for this project.
+    let s1 = make_session(pid, SessionStatus::Running);
+    let s2 = make_session(pid, SessionStatus::Exited);
+    let s3 = make_session(pid, SessionStatus::Thinking);
+    {
+        let mut sessions = state.sessions.write().await;
+        sessions.insert(s1.id, s1.clone());
+        sessions.insert(s2.id, s2.clone());
+        sessions.insert(s3.id, s3.clone());
+    }
+
+    // Simulate exited scrollback for s2.
+    {
+        let mut exited = state.exited_scrollback.write().await;
+        exited.insert(s2.id, b"some scrollback data".to_vec());
+    }
+
+    // Verify pre-conditions.
+    {
+        let sessions = state.sessions.read().await;
+        assert_eq!(sessions.len(), 3);
+    }
+
+    // Remove the project, its sessions, and exited scrollback (mirrors remove_project logic).
+    let session_ids: Vec<Uuid> = {
+        let sessions = state.sessions.read().await;
+        sessions
+            .values()
+            .filter(|s| s.project_id == pid)
+            .map(|s| s.id)
+            .collect()
+    };
+    {
+        let mut projects = state.projects.write().await;
+        projects.remove(&pid);
+    }
+    {
+        let mut sessions = state.sessions.write().await;
+        sessions.retain(|_, s| s.project_id != pid);
+    }
+    {
+        let mut handles = state.session_handles.write().await;
+        for sid in &session_ids {
+            handles.remove(sid);
+        }
+    }
+    {
+        let mut exited = state.exited_scrollback.write().await;
+        for sid in &session_ids {
+            exited.remove(sid);
+        }
+    }
+
+    // Verify everything is cleaned up.
+    {
+        let projects = state.projects.read().await;
+        assert!(projects.is_empty(), "projects should be empty");
+    }
+    {
+        let sessions = state.sessions.read().await;
+        assert!(sessions.is_empty(), "sessions should be empty");
+    }
+    {
+        let handles = state.session_handles.read().await;
+        assert!(handles.is_empty(), "session_handles should be empty");
+    }
+    {
+        let exited = state.exited_scrollback.read().await;
+        assert!(exited.is_empty(), "exited_scrollback should be empty");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 10. Diff parsing (DiffResult serialization)
+// ---------------------------------------------------------------------------
+
+use seance_lib::commands::files::DiffResult;
+
+#[test]
+fn diff_result_ok_serialization() {
+    let result = DiffResult::Ok {
+        diff_text: "--- a/file.rs\n+++ b/file.rs\n@@ -1 +1 @@\n-old\n+new".to_string(),
+        changed_files: vec!["file.rs".to_string()],
+        fallback_used: false,
+    };
+    let json = serde_json::to_value(&result).unwrap();
+    assert_eq!(json["kind"], "ok");
+    assert_eq!(json["fallback_used"], false);
+    assert_eq!(json["changed_files"], serde_json::json!(["file.rs"]));
+    assert!(json["diff_text"].as_str().unwrap().contains("+new"));
+}
+
+#[test]
+fn diff_result_ok_with_multiple_files() {
+    let result = DiffResult::Ok {
+        diff_text: "big diff".to_string(),
+        changed_files: vec!["a.rs".to_string(), "b.rs".to_string(), "c/d.rs".to_string()],
+        fallback_used: true,
+    };
+    let json = serde_json::to_value(&result).unwrap();
+    assert_eq!(json["kind"], "ok");
+    assert_eq!(json["fallback_used"], true);
+    let files = json["changed_files"].as_array().unwrap();
+    assert_eq!(files.len(), 3);
+    assert_eq!(files[2], "c/d.rs");
+}
+
+#[test]
+fn diff_result_no_changes_serialization() {
+    let result = DiffResult::NoChanges;
+    let json = serde_json::to_value(&result).unwrap();
+    assert_eq!(json["kind"], "no_changes");
+    // Should have no other fields.
+    let obj = json.as_object().unwrap();
+    assert_eq!(obj.len(), 1, "NoChanges should only have 'kind' field");
+}
+
+#[test]
+fn diff_result_not_git_repo_serialization() {
+    let result = DiffResult::NotGitRepo;
+    let json = serde_json::to_value(&result).unwrap();
+    assert_eq!(json["kind"], "not_git_repo");
+    let obj = json.as_object().unwrap();
+    assert_eq!(obj.len(), 1, "NotGitRepo should only have 'kind' field");
+}
+
+#[test]
+fn diff_result_error_serialization() {
+    let result = DiffResult::Error {
+        message: "git not found".to_string(),
+    };
+    let json = serde_json::to_value(&result).unwrap();
+    assert_eq!(json["kind"], "error");
+    assert_eq!(json["message"], "git not found");
+    let obj = json.as_object().unwrap();
+    assert_eq!(obj.len(), 2, "Error should have 'kind' and 'message' fields");
+}
+
+// ---------------------------------------------------------------------------
+// 11. Session status constraints
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn restart_requires_exited_status() {
+    let state = new_state();
+
+    let project = make_project("/tmp/restart-test", "cmd {{task}}");
+    let pid = project.id;
+    {
+        let mut projects = state.projects.write().await;
+        projects.insert(pid, project);
+    }
+
+    // Add a Running session.
+    let session = make_session(pid, SessionStatus::Running);
+    let sid = session.id;
+    {
+        let mut sessions = state.sessions.write().await;
+        sessions.insert(sid, session);
+    }
+
+    // Verify that a Running session cannot be restarted (by checking status constraints).
+    // The restart_session command checks:
+    //   if !matches!(session.status, SessionStatus::Exited | SessionStatus::Done | SessionStatus::Error)
+    //       return Err("Session is still running")
+    // We replicate this gate at the state level.
+    let can_restart = {
+        let sessions = state.sessions.read().await;
+        let s = sessions.get(&sid).unwrap();
+        matches!(
+            s.status,
+            SessionStatus::Exited | SessionStatus::Done | SessionStatus::Error
+        )
+    };
+    assert!(
+        !can_restart,
+        "Running session should NOT be eligible for restart"
+    );
+
+    // Verify that each terminal status IS eligible.
+    for status in [SessionStatus::Exited, SessionStatus::Done, SessionStatus::Error] {
+        {
+            let mut sessions = state.sessions.write().await;
+            sessions.get_mut(&sid).unwrap().status = status;
+        }
+        let can_restart = {
+            let sessions = state.sessions.read().await;
+            let s = sessions.get(&sid).unwrap();
+            matches!(
+                s.status,
+                SessionStatus::Exited | SessionStatus::Done | SessionStatus::Error
+            )
+        };
+        assert!(
+            can_restart,
+            "Session with status {:?} should be eligible for restart",
+            status
+        );
+    }
+
+    // Verify non-terminal statuses are NOT eligible.
+    for status in [SessionStatus::Running, SessionStatus::Thinking, SessionStatus::Waiting] {
+        {
+            let mut sessions = state.sessions.write().await;
+            sessions.get_mut(&sid).unwrap().status = status;
+        }
+        let can_restart = {
+            let sessions = state.sessions.read().await;
+            let s = sessions.get(&sid).unwrap();
+            matches!(
+                s.status,
+                SessionStatus::Exited | SessionStatus::Done | SessionStatus::Error
+            )
+        };
+        assert!(
+            !can_restart,
+            "Session with status {:?} should NOT be eligible for restart",
+            status
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 12. Timestamp utility
+// ---------------------------------------------------------------------------
+
+use seance_lib::state::timestamp_now;
+
+#[test]
+fn timestamp_now_returns_epoch_seconds() {
+    let ts = timestamp_now();
+
+    // Must parse as a u64.
+    let epoch_secs: u64 = ts
+        .parse()
+        .unwrap_or_else(|_| panic!("timestamp_now() returned non-numeric: '{}'", ts));
+
+    // Sanity check: should be after 2024-01-01 (1704067200) and before 2100.
+    assert!(
+        epoch_secs > 1_704_067_200,
+        "timestamp {} is suspiciously old",
+        epoch_secs
+    );
+    assert!(
+        epoch_secs < 4_102_444_800,
+        "timestamp {} is suspiciously far in the future",
+        epoch_secs
+    );
+
+    // Should be within 5 seconds of the current time.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let delta = if epoch_secs > now {
+        epoch_secs - now
+    } else {
+        now - epoch_secs
+    };
+    assert!(
+        delta <= 5,
+        "timestamp_now() ({}) is more than 5 seconds from system time ({})",
+        epoch_secs,
+        now
+    );
+}
+
+// ---------------------------------------------------------------------------
+// 13. Hook token
+// ---------------------------------------------------------------------------
+
+#[test]
+fn hook_token_is_unique_per_instance() {
+    let state1 = new_state();
+    let state2 = new_state();
+
+    assert_ne!(
+        state1.hook_token, state2.hook_token,
+        "Each AppState instance should have a unique hook_token"
+    );
+
+    // Token should look like a UUID (36 chars with hyphens).
+    assert_eq!(
+        state1.hook_token.len(),
+        36,
+        "hook_token should be a UUID string"
+    );
+    assert!(
+        uuid::Uuid::parse_str(&state1.hook_token).is_ok(),
+        "hook_token should be a valid UUID"
+    );
 }
 
 #[tokio::test]

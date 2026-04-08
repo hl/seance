@@ -2,7 +2,6 @@ import { type FC, useCallback } from "react";
 import AvatarStack from "./AvatarStack";
 
 interface ProjectCardProps {
-  id: string;
   name: string;
   path: string;
   activeSessionCount: number;
@@ -49,36 +48,22 @@ const ProjectCard: FC<ProjectCardProps> = ({
           {name}
         </h3>
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <span
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
             onClick={handleSettings}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.stopPropagation();
-                onSettings();
-              }
-            }}
             className="rounded px-1.5 py-0.5 text-xs text-text-muted hover:bg-interactive-hover hover:text-text-secondary-hover"
             title="Project settings"
           >
             &#9881;
-          </span>
-          <span
-            role="button"
-            tabIndex={0}
+          </button>
+          <button
+            type="button"
             onClick={handleRemove}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.stopPropagation();
-                onRemove();
-              }
-            }}
             className="rounded px-1.5 py-0.5 text-xs text-text-muted hover:bg-red-100/50 hover:text-red-700 dark:hover:bg-red-900/50 dark:hover:text-red-400"
             title="Remove project"
           >
             &#10005;
-          </span>
+          </button>
         </div>
       </div>
 

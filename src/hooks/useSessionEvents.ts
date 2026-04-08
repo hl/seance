@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useSessionStore } from "../stores/sessionStore";
 import type { SessionStatus } from "../stores/sessionStore";
@@ -6,7 +6,7 @@ import type { SessionStatus } from "../stores/sessionStore";
 interface StatusPayload {
   sessionId: string;
   status: SessionStatus;
-  message?: string;
+  lastMessage?: string;
 }
 
 interface ExitedPayload {
@@ -29,6 +29,16 @@ interface WorkingDirPayload {
 export function useProjectSessionEvents(projectId: string): void {
   const sessions = useSessionStore((s) => s.sessions);
 
+  // Derive a stable set of session IDs for this project.
+  // Only changes when sessions are added/removed, not on status updates.
+  const projectSessionIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const [id, session] of sessions) {
+      if (session.projectId === projectId) ids.push(id);
+    }
+    return ids;
+  }, [sessions, projectId]);
+
   // Track active listeners keyed by session ID
   const listenersRef = useRef<Map<string, UnlistenFn[]>>(new Map());
   // Track whether the component is still mounted
@@ -42,14 +52,7 @@ export function useProjectSessionEvents(projectId: string): void {
   }, []);
 
   useEffect(() => {
-    // Compute the set of session IDs belonging to this project
-    const currentIds = new Set<string>();
-    for (const [id, session] of sessions) {
-      if (session.projectId === projectId) {
-        currentIds.add(id);
-      }
-    }
-
+    const currentIds = new Set<string>(projectSessionIds);
     const prevIds = new Set(listenersRef.current.keys());
 
     // Determine which sessions were added or removed
@@ -92,7 +95,7 @@ export function useProjectSessionEvents(projectId: string): void {
               .updateStatus(
                 event.payload.sessionId,
                 event.payload.status,
-                event.payload.message,
+                event.payload.lastMessage,
               );
           }
         }),
@@ -142,7 +145,7 @@ export function useProjectSessionEvents(projectId: string): void {
       // separate cleanup effect above).
       // On re-renders, the diff logic above handles incremental changes.
     };
-  }, [sessions, projectId]);
+  }, [projectSessionIds]);
 
   // Full teardown on unmount
   useEffect(() => {
