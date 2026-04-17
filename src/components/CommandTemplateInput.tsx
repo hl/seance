@@ -37,8 +37,6 @@ const CommandTemplateInput: FC<CommandTemplateInputProps> = ({
     [value, projectDir],
   );
 
-  const isEmpty = value.trim() === "";
-
   return (
     <div className="space-y-3">
       <div>
@@ -58,17 +56,11 @@ const CommandTemplateInput: FC<CommandTemplateInputProps> = ({
           autoCapitalize="off"
           spellCheck={false}
           data-gramm="false"
-          className={`w-full rounded-md border bg-surface px-3 py-2 font-mono text-sm text-text placeholder-text-placeholder focus:outline-none focus:ring-1 ${
-            isEmpty
-              ? "border-red-500/50 focus:ring-red-500/50"
-              : "border-border-input focus:ring-ring-focus"
-          }`}
+          className="w-full rounded-md border border-border-input bg-surface px-3 py-2 font-mono text-sm text-text placeholder-text-placeholder focus:outline-none focus:ring-1 focus:ring-ring-focus"
         />
-        {isEmpty && (
-          <p className="mt-1 text-xs text-red-700 dark:text-red-400">
-            Command template cannot be empty
-          </p>
-        )}
+        <p className="mt-1 text-xs text-text-muted">
+          Leave empty to start sessions as a plain shell
+        </p>
       </div>
 
       <div className="text-xs text-text-muted">

@@ -54,8 +54,6 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
   }, [projectId, initialCommandTemplate]);
 
   const handleSave = useCallback(async () => {
-    if (commandTemplate.trim() === "") return;
-
     setSaving(true);
     setError(null);
     try {
@@ -120,7 +118,7 @@ const ProjectSettings: FC<ProjectSettingsProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            disabled={commandTemplate.trim() === "" || saving}
+            disabled={saving}
             className="rounded-md bg-btn-primary-bg px-4 py-2 text-sm font-medium text-btn-primary-text transition-colors hover:bg-btn-primary-bg-hover disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving ? "Saving..." : "Save"}

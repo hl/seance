@@ -71,17 +71,21 @@ pub async fn create_session(
         (project.command_template.clone(), project.path.clone())
     };
 
-    if command_template.is_empty() {
-        return Err("Project has no command template configured".to_string());
-    }
-
     // Generate session identity — deterministic name from UUID.
     let session_id = Uuid::new_v4();
     let generated_name = crate::identity::default_name(session_id);
 
-    // Resolve the command template.
-    let command_line =
-        crate::state::resolve_template(&command_template, &generated_name, &task, &project_dir);
+    // Resolve the command template only when non-empty (whitespace-only counts as empty).
+    let command_line = if command_template.trim().is_empty() {
+        None
+    } else {
+        Some(crate::state::resolve_template(
+            &command_template,
+            &generated_name,
+            &task,
+            &project_dir,
+        ))
+    };
 
     // Read the hook port from settings.
     let hook_port = {
@@ -92,8 +96,13 @@ pub async fn create_session(
 
     // Spawn the PTY. No Channel yet — the Terminal component will call
     // subscribe_output to attach a Channel after the session is created.
-    let (handle, child) =
-        pty_engine::spawn_session(session_id, &command_line, &project_dir, hook_port, hook_token)?;
+    let (handle, child) = pty_engine::spawn_session(
+        session_id,
+        command_line.as_deref(),
+        &project_dir,
+        hook_port,
+        hook_token,
+    )?;
 
     let pid = handle.pid;
     let now = timestamp_now();
@@ -350,13 +359,17 @@ pub async fn restart_session(
         (project.command_template.clone(), project.path.clone())
     };
 
-    if command_template.is_empty() {
-        return Err("Project has no command template configured".to_string());
-    }
-
-    // Resolve the command template with the same identity.
-    let command_line =
-        crate::state::resolve_template(&command_template, &generated_name, &task, &project_dir);
+    // Resolve the command template only when non-empty (whitespace-only counts as empty).
+    let command_line = if command_template.trim().is_empty() {
+        None
+    } else {
+        Some(crate::state::resolve_template(
+            &command_template,
+            &generated_name,
+            &task,
+            &project_dir,
+        ))
+    };
 
     let hook_port = {
         let settings = state.settings.read().await;
@@ -368,7 +381,7 @@ pub async fn restart_session(
     // spawn fails, the old handle remains in the map and can be cleaned up.
     let (handle, child) = pty_engine::spawn_session(
         session_id,
-        &command_line,
+        command_line.as_deref(),
         &project_dir,
         hook_port,
         hook_token,

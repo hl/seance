@@ -89,12 +89,12 @@ impl SessionHandle {
     }
 }
 
-/// Spawn a PTY for the given command line, in the given working directory,
-/// with the given environment variables. Returns a SessionHandle and a
-/// child process (moved into the exit watcher).
+/// Spawn an interactive login shell in a PTY, optionally injecting a command
+/// via stdin. Returns a SessionHandle and a child process (moved into the
+/// exit watcher).
 pub fn spawn_session(
     session_id: Uuid,
-    command_line: &str,
+    command_line: Option<&str>,
     working_dir: &str,
     hook_port: u16,
     hook_token: &str,
@@ -109,11 +109,10 @@ pub fn spawn_session(
         })
         .map_err(|e| format!("Failed to open PTY: {}", e))?;
 
-    // Build the command — use the user's shell to interpret the command line.
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
-    let mut cmd = CommandBuilder::new(&shell);
-    cmd.arg("-c");
-    cmd.arg(command_line);
+    // Spawn an interactive login shell using portable_pty's default prog
+    // mechanism: argv[0] is set to "-<shell>" (e.g., "-zsh"), which is the
+    // POSIX convention for signalling a login shell.
+    let mut cmd = CommandBuilder::new_default_prog();
     cmd.cwd(working_dir);
 
     // Tell the child process it's running in a 256-color terminal.
@@ -145,10 +144,21 @@ pub fn spawn_session(
         .master
         .try_clone_reader()
         .map_err(|e| format!("Failed to clone PTY reader: {}", e))?;
-    let writer = pair
+    let mut writer = pair
         .master
         .take_writer()
         .map_err(|e| format!("Failed to take PTY writer: {}", e))?;
+
+    // If a command was provided, inject it into the shell's stdin so it
+    // runs as if the user typed it. The PTY kernel buffer holds the data
+    // until the shell finishes sourcing its init files and starts reading.
+    if let Some(cmd) = command_line {
+        if !cmd.is_empty() {
+            writer
+                .write_all(format!("{}\n", cmd).as_bytes())
+                .map_err(|e| format!("Failed to write command to PTY stdin: {}", e))?;
+        }
+    }
 
     let writer = Arc::new(Mutex::new(writer));
     let scrollback = Arc::new(Mutex::new(ScrollbackBuffer::new()));
